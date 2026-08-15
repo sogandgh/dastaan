@@ -16,7 +16,13 @@ import { extname, join, normalize } from 'node:path';
 const PORT        = process.env.PORT || 8000;
 const API_KEY     = process.env.ELEVENLABS_API_KEY;
 const OPENAI_KEY  = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL      = process.env.OPENAI_MODEL || 'gpt-5-mini';
+// Story writing gets the full model — real creative writing in Farsi held up
+// noticeably better under it (natural idioms, causally-connected events,
+// named characters) than gpt-5-mini did, and reasoning_effort: 'minimal'
+// means that costs almost no latency (~4s vs ~3s, measured). Translating one
+// word for a flashcard is a much narrower task; gpt-5-mini stays there.
+const OPENAI_STORY_MODEL = process.env.OPENAI_STORY_MODEL || 'gpt-5';
+const OPENAI_MODEL       = process.env.OPENAI_MODEL || 'gpt-5-mini';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini';
 const ROOT        = process.cwd();
 
@@ -163,8 +169,8 @@ Rules:
 - Reply with ONLY the story text in Persian script. No title, no transliteration, no English, no markdown, no quotation marks around the whole story.
 - About ${words} words — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
 - Very simple Farsi words a 3-year-old knows, in short sentences.
-- One or two main characters, with a small, easy-to-follow problem or adventure for them.
-- Keep the story focused on one main idea. Every event should follow naturally from the one before it — no random scene changes, no complicated explanations.
+- One or two main characters, named, with a small, easy-to-follow problem or adventure for them — something they actually have to work at or figure out, not something that just happens to them.
+- Keep the story focused on one main idea. Every event should follow from a *reason* given earlier in the story — not from convenience. Don't introduce a new creature, object, or character partway through unless the story already gave a reason it would be there; a stray animal wandering in to make a sound is exactly the kind of random detail to avoid.
 - Playful sounds, actions, and dialogue to bring it to life.
 - Vivid but simple descriptions — concrete things a toddler has actually seen, not abstract ideas.
 - Warm and gentle throughout. Never scary, sad, violent, or sarcastic. A satisfying, happy ending.
@@ -225,9 +231,10 @@ async function handleStory(req, res) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
-      // Story writing needs no deliberation; this keeps it a few seconds rather
-      // than tens of seconds, which matters when a small child is waiting.
+      model: OPENAI_STORY_MODEL,
+      // minimal, not off: the full model doesn't need to deliberate for a
+      // task like this, and skipping reasoning keeps this a few seconds
+      // rather than tens of seconds, which matters when a child is waiting.
       reasoning_effort: 'minimal',
       messages: [
         { role: 'system', content: buildSystemPrompt(minutes) },
