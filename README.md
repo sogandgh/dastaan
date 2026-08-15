@@ -25,12 +25,7 @@ short Farsi story built around it while your kid just watches him, no reading re
 
 ![Story playing screen](docs/screenshot-story-playing.png)
 
-## How it's built
-
-Static HTML/CSS/ES modules on the frontend, a Node server with no framework and no
-dependencies. That's a deliberate choice, not a limitation: nothing to `npm install`,
-no build step, no version drift — clone it and it runs, on a laptop or a $6/month
-droplet, exactly the same way five years from now.
+## Requirements
 
 | Needed | Version | Why |
 |---|---|---|
