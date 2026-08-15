@@ -64,7 +64,10 @@ words from inside the app:
    another word.
 
 Every collection and card is saved on the server, in `data/vocabulary.json` and
-`data/images/`. Any device that opens the app sees the same words
+`data/images/`. Any device that opens the app sees the same words — and the same
+stories: each one, with its pictures, is saved in `data/stories.json` and
+`data/story-images/`, so a story made on one device shows up in "stories you've made"
+on every other.
 
 ## Notes
 

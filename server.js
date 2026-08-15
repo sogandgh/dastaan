@@ -34,6 +34,15 @@ const DATA_DIR   = join(ROOT, 'data');
 const IMAGES_DIR = join(DATA_DIR, 'images');
 const VOCAB_FILE = join(DATA_DIR, 'vocabulary.json');
 
+// Stories were per-browser (IndexedDB) — a story generated on one phone
+// didn't exist on any other. Shared now, the same way collections/cards
+// are: one JSON file of records plus a folder of PNGs for the scene
+// pictures, so every device sees the same "stories you've made" list, and
+// a story someone else already generated is instant and free instead of
+// generating again from scratch.
+const STORY_IMAGES_DIR = join(DATA_DIR, 'story-images');
+const STORIES_FILE     = join(DATA_DIR, 'stories.json');
+
 const API_ROOT = 'https://api.elevenlabs.io';
 const MODEL_ID = 'eleven_v3';     // the only model that supports Persian (fas)
 const OUT_FMT  = 'mp3_44100_128';
@@ -243,9 +252,9 @@ async function handleStory(req, res) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
 
-  let prompt = '', focus = '', minutes = 1;
+  let prompt = '', focus = '', minutes = 1, label = '';
   try {
-    ({ prompt = '', focus = '', minutes = 1 } = JSON.parse(Buffer.concat(chunks).toString()));
+    ({ prompt = '', focus = '', minutes = 1, label = '' } = JSON.parse(Buffer.concat(chunks).toString()));
   } catch {
     return sendJson(res, 400, { error: 'Malformed request body.' });
   }
@@ -258,6 +267,18 @@ async function handleStory(req, res) {
   if (!userPrompt) {
     return sendJson(res, 400, { error: 'Pick a focus or say what the story is about.' });
   }
+
+  // The same request (same focus/prompt/length) always gets the same story
+  // — small children want *that* story again, not a new one — and now that
+  // stories are shared, "same request" means shared across every device
+  // too: whoever asks first pays for it, everyone else gets it free and
+  // instantly, exactly like replaying one from history.
+  const key = [
+    minutes, focus,
+    String(prompt).trim().toLowerCase().replace(/\s+/g, ' '),
+  ].join('|');
+  const existing = (await loadStories()).stories.find(s => s.key === key);
+  if (existing) return sendJson(res, 200, { id: existing.id, scenes: existing.scenes });
 
   // A story now takes 20-40s (text, then a picture per scene) — long enough
   // that a parent cancelling mid-wait is normal, not an edge case. Rather
@@ -340,12 +361,51 @@ async function handleStory(req, res) {
   }));
   if (bail()) return;   // cancelled while drawing — no one's listening
 
-  sendJson(res, 200, {
-    scenes: scenes.map((s, i) => ({
-      text:  s.text,
-      image: images[i] ? `data:image/png;base64,${images[i]}` : null,
-    })),
+  // Save each picture as its own file (same reason card art is a file and
+  // not inline JSON: base64 in a JSON blob that gets read and rewritten on
+  // every future story would only get slower and heavier over time) and
+  // save the story itself — shared, so any device sees it in history, and
+  // matched against `key` above so this exact request is never paid for or
+  // waited on twice.
+  const id = newId('story');
+  const savedScenes = await Promise.all(scenes.map(async (s, i) =>
+    images[i]
+      ? { text: s.text, image: await saveImageFile(`${id}-${i}`, `data:image/png;base64,${images[i]}`, STORY_IMAGES_DIR) }
+      : { text: s.text, image: null }
+  ));
+
+  await mutateStories(data => {
+    data.stories.push({
+      id, key,
+      label: String(label).trim() || String(prompt).trim() || 'A story',
+      minutes,
+      scenes: savedScenes,
+      savedAt: Date.now(),
+    });
   });
+
+  sendJson(res, 200, { id, scenes: savedScenes });
+}
+
+async function handleStoriesGet(res) {
+  const data = await loadStories();
+  sendJson(res, 200, {
+    stories: data.stories.slice().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)),
+  });
+}
+
+async function handleDeleteStory(id, res) {
+  try {
+    let removed = null;
+    await mutateStories(data => {
+      removed = data.stories.find(s => s.id === id) || null;
+      data.stories = data.stories.filter(s => s.id !== id);
+    });
+    if (removed) await Promise.all(removed.scenes.map(s => s.image ? deleteImageFile(s.image) : null));
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: e.message });
+  }
 }
 
 /**
@@ -525,22 +585,53 @@ function mutateVocabulary(fn) {
   return result;
 }
 
+// Same read/serialize-writes pattern as vocabulary above, kept as its own
+// file and its own promise chain since it's a separate dataset that changes
+// on its own schedule (a new story vs. a new word).
+let storiesPromise     = null;
+let storiesMutationTail = Promise.resolve();
+
+async function loadStories() {
+  if (storiesPromise) return storiesPromise;
+  storiesPromise = (async () => {
+    try {
+      return JSON.parse(await readFile(STORIES_FILE, 'utf8'));
+    } catch {
+      return { stories: [] };   // first run, or file missing
+    }
+  })();
+  return storiesPromise;
+}
+
+function mutateStories(fn) {
+  const result = storiesMutationTail.then(async () => {
+    const data = await loadStories();
+    const ret = await fn(data);
+    await mkdir(DATA_DIR, { recursive: true });
+    await writeFile(STORIES_FILE, JSON.stringify(data, null, 2));
+    storiesPromise = Promise.resolve(data);
+    return ret;
+  });
+  storiesMutationTail = result.catch(() => {});
+  return result;
+}
+
 function newId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-async function saveImageFile(id, dataUrl) {
+async function saveImageFile(id, dataUrl, dir = IMAGES_DIR) {
   const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl || '');
   if (!match) throw new Error('That image could not be saved.');
   const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-  await mkdir(IMAGES_DIR, { recursive: true });
+  await mkdir(dir, { recursive: true });
   const filename = `${id}.${ext}`;
-  await writeFile(join(IMAGES_DIR, filename), Buffer.from(match[2], 'base64'));
-  return `/data/images/${filename}`;
+  await writeFile(join(dir, filename), Buffer.from(match[2], 'base64'));
+  return `/data/${dir === STORY_IMAGES_DIR ? 'story-images' : 'images'}/${filename}`;
 }
 
 async function deleteImageFile(publicPath) {
-  if (!publicPath || !publicPath.startsWith('/data/images/')) return;
+  if (!publicPath || !/^\/data\/(images|story-images)\//.test(publicPath)) return;
   try { await unlink(join(ROOT, publicPath)); } catch { /* already gone */ }
 }
 
@@ -656,7 +747,13 @@ createServer(async (req, res) => {
     if (pathname === '/api/story'      && req.method === 'POST') return await handleStory(req, res);
     if (pathname === '/api/card'       && req.method === 'POST') return await handleCard(req, res);
     if (pathname === '/api/vocabulary' && req.method === 'GET')  return await handleVocabularyGet(res);
+    if (pathname === '/api/stories'    && req.method === 'GET')  return await handleStoriesGet(res);
     if (pathname === '/api/collections' && req.method === 'POST') return await handleCreateCollection(req, res);
+
+    const storyMatch = pathname.match(/^\/api\/stories\/([^/]+)$/);
+    if (storyMatch && req.method === 'DELETE') {
+      return await handleDeleteStory(decodeURIComponent(storyMatch[1]), res);
+    }
 
     const collMatch  = pathname.match(/^\/api\/collections\/([^/]+)$/);
     if (collMatch && req.method === 'DELETE') {

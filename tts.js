@@ -30,11 +30,12 @@ export function setVoice(voiceId) {
 const DB_NAME = 'bluey-tts';
 const STORE   = 'clips';
 const STORIES = 'stories';
-// 'cards' and 'collections' object stores from schema v4 are no longer
+// 'cards', 'collections', and (as of this file) 'stories' are no longer
 // written to — that data now lives on the server, shared across devices —
-// but the stores are left in place rather than migrated away, since some
-// browsers may already have them and there is nothing left to gain by
-// deleting empty stores.
+// but the object stores are left in place rather than migrated away, since
+// some browsers may already have them and there is nothing left to gain by
+// deleting empty stores. Old browser-local story history simply stops
+// showing up; nothing reads this store anymore.
 let dbPromise = null;
 
 function openDB() {
@@ -156,39 +157,25 @@ export async function prefetch(text, voiceId) {
 }
 
 // ── Stories ─────────────────────────────────────────────────────
-/**
- * Ask for a story. The same request always returns the same story: small
- * children want *that* story again, not a new one, and a cached story also hits
- * the cached audio, so a repeat costs nothing and plays instantly.
- */
+// Shared on the server now, not per-browser IndexedDB — a story generated
+// on one phone shows up in "stories you've made" on every other device
+// too, the same way collections/cards already do. The server itself
+// recognises a repeat of the same focus/prompt/length and returns the
+// existing story instead of writing a new one, so replaying (from
+// history) or re-asking for the same thing (from setup) both resolve
+// instantly and never regenerate.
+/** Ask for a story. `signal` lets the in-flight request be cancelled. */
 export async function getStory({ prompt = '', focus = '', minutes = 1, label = '', signal }) {
-  const key = [
-    minutes,
-    focus,
-    prompt.trim().toLowerCase().replace(/\s+/g, ' '),
-  ].join('|');
-
-  const cached = await idbGet(STORIES, key);
-  if (cached) {
-    return { scenes: normalizeScenes(cached), fromCache: true };
-  }
-
   const res = await fetch('/api/story', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, focus, minutes }),
+    body: JSON.stringify({ prompt, focus, minutes, label }),
     signal,
   });
   if (!res.ok) throw new Error(await describeError(res));
 
-  const { scenes } = await res.json();
-  await idbSet(STORIES, key, {
-    scenes,
-    label: label || prompt.trim() || 'A story',
-    minutes,
-    savedAt: Date.now(),
-  });
-  return { scenes: normalizeScenes({ scenes }), fromCache: false };
+  const { id, scenes } = await res.json();
+  return { id, scenes: normalizeScenes({ scenes }) };
 }
 
 /**
@@ -204,66 +191,25 @@ export function normalizeScenes(rec) {
   return [];
 }
 
-/**
- * Stories told before, newest first. Replaying one costs nothing.
- * Each record carries its real IndexedDB key as `_key`, so deleteStory can
- * remove it directly rather than matching by value — a value like savedAt
- * can't identify a record that never had one (see deleteStory below).
- */
+/** Stories told before, newest first (server already sorts them). Replaying
+ *  one costs nothing. Each record's real id is exposed as `_key`, matching
+ *  the shape this used to have as an IndexedDB key — deleteStory below and
+ *  its caller in app.js only ever pass that value back through. */
 export async function listStories() {
   try {
-    const db = await openDB();
-    const store = db.transaction(STORIES, 'readonly').objectStore(STORIES);
-
-    // getAll() and getAllKeys() are guaranteed to return in the same
-    // (primary-key) order, so they can be zipped positionally.
-    const [values, keys] = await Promise.all([
-      new Promise((resolve, reject) => {
-        const r = store.getAll();
-        r.onsuccess = () => resolve(r.result || []);
-        r.onerror   = () => reject(r.error);
-      }),
-      new Promise((resolve, reject) => {
-        const r = store.getAllKeys();
-        r.onsuccess = () => resolve(r.result || []);
-        r.onerror   = () => reject(r.error);
-      }),
-    ]);
-
-    return values
-      .map((r, i) => {
-        const rec = typeof r === 'string' ? { story: r, minutes: 1, savedAt: 0 } : r;
-        return { ...rec, _key: keys[i] };
-      })
-      .filter(r => r && (r.story || r.scenes?.length))
-      // Records saved before labels existed still deserve a name: use the
-      // story's opening words rather than calling everything "A story".
-      .map(r => ({ ...r, label: r.label || openingWords(normalizeScenes(r)) }))
-      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+    const res = await fetch('/api/stories');
+    if (!res.ok) return [];
+    const { stories } = await res.json();
+    return (stories || []).map(r => ({ ...r, _key: r.id }));
   } catch {
     return [];
   }
 }
 
-function openingWords(scenes) {
-  const story = scenes.map(s => s.text).join(' ');
-  const words = story.trim().split(/\s+/).slice(0, 5).join(' ');
-  return words.length < story.trim().length ? `${words}…` : words;
-}
-
-/**
- * Forget one saved story, given the `_key` from listStories(). Its audio
- * clips stay cached until the cache is cleared.
- */
-export async function deleteStory(key) {
+/** Forget one saved story, given the `_key` (id) from listStories(). */
+export async function deleteStory(id) {
   try {
-    const db = await openDB();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORIES, 'readwrite');
-      tx.objectStore(STORIES).delete(key);
-      tx.oncomplete = resolve;
-      tx.onerror    = () => reject(tx.error);
-    });
+    await fetch(`/api/stories/${encodeURIComponent(id)}`, { method: 'DELETE' });
   } catch {
     /* best effort */
   }
@@ -273,8 +219,8 @@ export async function deleteStory(key) {
 /** A named deck the parent creates, e.g. "Colors" or "Family". Starts empty. */
 // Collections and cards live on the server now, not in this browser's
 // IndexedDB — every device that opens the app sees the same family
-// vocabulary. (Word audio and story history stay local: they're per-device
-// caches/history, not something every device needs to share.)
+// vocabulary. (Stories are shared the same way, above. Only word audio
+// clips stay local — a per-device cache, not something worth syncing.)
 export async function createCollection(name) {
   const res = await fetch('/api/collections', {
     method: 'POST',
