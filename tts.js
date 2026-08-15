@@ -161,7 +161,7 @@ export async function prefetch(text, voiceId) {
  * children want *that* story again, not a new one, and a cached story also hits
  * the cached audio, so a repeat costs nothing and plays instantly.
  */
-export async function getStory({ prompt = '', focus = '', minutes = 1, label = '' }) {
+export async function getStory({ prompt = '', focus = '', minutes = 1, label = '', signal }) {
   const key = [
     minutes,
     focus,
@@ -177,6 +177,7 @@ export async function getStory({ prompt = '', focus = '', minutes = 1, label = '
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, focus, minutes }),
+    signal,
   });
   if (!res.ok) throw new Error(await describeError(res));
 

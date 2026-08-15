@@ -504,7 +504,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
 
 .card-art {
   position: relative;   /* gives the image a definite box to fit inside */
-  height: clamp(140px, 22vh, 200px);
+  height: clamp(170px, 28vh, 240px);
   margin-bottom: 14px;
   overflow: hidden;
   border-radius: var(--r-md);
@@ -1101,7 +1101,7 @@ body[data-mode="play"] .disclaimer { opacity: 0; }
   .bluey-holder { transform: scale(0.78); margin-bottom: -22px; }
   .panel-learn, .panel-setup, .panel-play { width: 100%; max-width: 440px; }
   .panel-setup { max-height: none; }
-  .card-art { height: clamp(110px, 16vh, 150px); }
+  .card-art { height: clamp(140px, 20vh, 180px); }
 }
 
 @media (max-width: 420px) {

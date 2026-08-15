@@ -530,7 +530,23 @@ function renderLengths() {
   });
 }
 
+// Set only while a story is actually being generated — startStory() checks
+// this first, so the same button that started it cancels it on a second tap.
+let storyController = null;
+
+function resetStoryForm() {
+  storyController = null;
+  setupNote.classList.remove('is-loading');
+  loadingBar.hidden = true;
+  startBtn.textContent = 'Start the story';
+}
+
 async function startStory() {
+  if (storyController) {           // already generating — this tap means cancel
+    storyController.abort();
+    return;
+  }
+
   const custom = promptEl.value.trim();
   if (!selectedTheme && !custom) {
     setupNote.textContent = 'Pick a focus above, or type what the story should be about.';
@@ -546,7 +562,8 @@ async function startStory() {
   setupNote.textContent = 'Writing the story and drawing the pictures';
   setupNote.classList.add('is-loading');
   loadingBar.hidden = false;
-  startBtn.disabled = true;
+  startBtn.textContent = 'Cancel';
+  storyController = new AbortController();
 
   let scenes;
   try {
@@ -555,20 +572,18 @@ async function startStory() {
       focus:   selectedTheme?.focus || '',
       minutes: selectedMinutes,
       label:   custom || selectedTheme?.label || 'A story',
+      signal:  storyController.signal,
     }));
   } catch (e) {
-    setupNote.textContent = e.message;
-    setupNote.classList.remove('is-loading');
-    setupNote.classList.add('error');
-    loadingBar.hidden = true;
-    startBtn.disabled = false;
+    const cancelled = e.name === 'AbortError';
+    resetStoryForm();
+    setupNote.textContent = cancelled ? '' : e.message;
+    setupNote.classList.toggle('error', !cancelled);
     return;
   }
 
+  resetStoryForm();
   setupNote.textContent = '';
-  setupNote.classList.remove('is-loading');
-  loadingBar.hidden = true;
-  startBtn.disabled = false;
   renderHistory();
   await playStory(scenes, selectedTheme?.label || custom || 'A story for you');
 }
@@ -582,15 +597,18 @@ function stripDeliveryTags(text) {
 /** Stories from before scenes/pictures existed come back from getStory() as
  *  one giant scene with no image. Left whole, that would be one very long
  *  single TTS clip with a long wait and no pacing — so anything oversized
- *  still gets split for narration, it just won't have pictures to show. */
+ *  still gets split for narration, it just won't have pictures to show.
+ *
+ *  Only scenes with no picture need this: a real scene already has one, and
+ *  is already paced by the story generator itself (3-6 scenes, roughly
+ *  equal length) — splitting it further here would just orphan its picture
+ *  on the first half and leave the rest with nothing, for no reason. */
 function expandLongScenes(scenes) {
   const MAX = 260;
   const out = [];
   for (const scene of scenes) {
-    if (scene.text.length <= MAX) { out.push(scene); continue; }
-    splitForNarration(scene.text, MAX, MAX).forEach((text, i) => {
-      out.push({ text, image: i === 0 ? scene.image : null });
-    });
+    if (scene.image || scene.text.length <= MAX) { out.push(scene); continue; }
+    splitForNarration(scene.text, MAX, MAX).forEach(text => out.push({ text, image: null }));
   }
   return out;
 }
@@ -618,13 +636,24 @@ async function playStory(rawScenes, label) {
   playThemeEl.textContent = label;
   storyTextEl.textContent = '';
   storySceneEl.hidden = true;
+  isPaused = false;
+  repeatAction = null;
+  renderPauseButton();
   setMode('play');
   // The first chunk takes a few seconds to synthesise. Say so, otherwise a
   // motionless Bluey reads as broken rather than as getting ready.
   document.body.classList.add('preparing');
   const outcome = await speakStory(scenes);
   document.body.classList.remove('preparing');
-  if (outcome !== 'stopped') setMode('setup');
+  if (outcome === 'finished') {
+    // Stay right here instead of bouncing back to setup — a kid watching
+    // the picture and text doesn't want the screen to change out from under
+    // them the moment it ends. Repeating replays the scenes already in
+    // hand, so it's instant, no regenerating anything.
+    showRepeatButton(() => playStory(rawScenes, label));
+  } else if (outcome !== 'stopped') {
+    setMode('setup');
+  }
 }
 
 // ── History ──────────────────────────────────────────────────
@@ -666,8 +695,14 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-/** Pause and resume the narration in place; the story keeps its position. */
+/** Set only while a finished story is sitting on screen waiting for a tap —
+ *  the same button that paused mid-story now repeats it from the start. */
+let repeatAction = null;
+
+/** Pause and resume the narration in place; the story keeps its position.
+ *  Once the story has actually finished, this same button repeats it instead. */
 function togglePause() {
+  if (repeatAction) { const again = repeatAction; repeatAction = null; again(); return; }
   if (!currentAudio) return;
   isPaused = !isPaused;
 
@@ -691,6 +726,19 @@ function renderPauseButton() {
     : '<rect x="7.5" y="6" width="3.4" height="12" rx="1.4"/>' +
       '<rect x="13.1" y="6" width="3.4" height="12" rx="1.4"/>';
   label.textContent = isPaused ? 'Play' : 'Pause';
+}
+
+/** The story just finished on its own (not paused, not left) — offer to
+ *  hear it again right where it is, instead of jumping back to setup. */
+function showRepeatButton(action) {
+  repeatAction = action;
+  const icon  = document.getElementById('pause-icon');
+  const label = document.getElementById('pause-label');
+  if (!icon || !label) return;
+  icon.innerHTML =
+    '<path d="M12,5V1L7,6l5,5V7c3.31,0,6,2.69,6,6s-2.69,6-6,6s-6-2.69-6-6H4c0,4.42,3.58,8,8,8' +
+    's8-3.58,8-8S16.42,5,12,5z"/>';
+  label.textContent = 'Play again';
 }
 
 /** Leave story playback entirely and return to the setup screen. */
