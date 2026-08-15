@@ -452,6 +452,7 @@ const promptEl    = document.getElementById('story-prompt');
 const startBtn    = document.getElementById('start-btn');
 const setupNote   = document.getElementById('setup-note');
 const playThemeEl = document.getElementById('playing-theme');
+const storyTextEl = document.getElementById('story-text');
 
 function renderThemes() {
   themesEl.innerHTML = '';
@@ -519,6 +520,7 @@ async function startStory() {
 /** Shared by a fresh story and by replaying one from the history. */
 async function playStory(story, label) {
   playThemeEl.textContent = label;
+  storyTextEl.textContent = story;
   setMode('play');
   // The first chunk takes a few seconds to synthesise. Say so, otherwise a
   // motionless Bluey reads as broken rather than as getting ready.

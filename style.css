@@ -275,19 +275,9 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
 }
 .bluey-holder:active { transform: scale(0.98); }
 
-/* Story mode: he steps forward, centred and larger. */
-/* Story mode stacks: Bluey above, controls below, both in normal flow so they
-   can never overlap however tall or narrow the screen is. */
-body[data-mode="play"] .stage {
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding-top: 28px;
-}
-body[data-mode="play"] .bluey-holder {
-  transform: scale(1.05);
-  transform-origin: center bottom;
-}
+/* Story mode uses the same side-by-side stage as Learn and Story setup —
+   Bluey on the left, the story text where a parent can follow along on the
+   right — rather than a special centred layout of its own. */
 
 /* ============================================================
    PANELS
@@ -782,9 +772,8 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .panel-play {
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  width: min(560px, 100%);
-  padding: 0 4px;
+  gap: 16px;
+  width: min(420px, 100%);
 }
 
 .playing-meta {
@@ -799,6 +788,24 @@ body[data-mode="play"]  #panel-play { display: flex; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--amber);
+}
+
+/* The story itself, so a grown-up can follow along while Bluey narrates. */
+.story-panel {
+  width: 100%;
+  max-height: min(48vh, 420px);
+  overflow-y: auto;
+  padding: 22px;
+  border-radius: var(--r-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-lg);
+}
+.story-panel p {
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 2.1;
+  color: var(--ink);
 }
 
 /* While the first chunk is being synthesised there is nothing to hear and the
@@ -1012,10 +1019,9 @@ body[data-mode="play"] .disclaimer { opacity: 0; }
     overflow-y: auto;
   }
   .bluey-holder { transform: scale(0.78); margin-bottom: -22px; }
-  .panel-learn, .panel-setup { width: 100%; max-width: 440px; }
+  .panel-learn, .panel-setup, .panel-play { width: 100%; max-width: 440px; }
   .panel-setup { max-height: none; }
   .card-art { height: clamp(110px, 16vh, 150px); }
-  body[data-mode="play"] .bluey-holder { transform: translateY(-8vh) scale(0.92); }
 }
 
 @media (max-width: 420px) {
