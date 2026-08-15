@@ -116,6 +116,31 @@ const lipSync = {
 };
 
 // ============================================================
+//   AUDIO UNLOCK  — iOS Safari specific
+//   Safari only allows audio.play() when it can trace back, synchronously,
+//   to a real user gesture. Starting a story does `await getStory(...)`
+//   (an LLM call, several seconds) before the first audio.play() — by then
+//   the gesture is long gone, so play() is silently denied and the app
+//   falls back out of story mode with nothing having played. Priming a
+//   silent clip synchronously, on the very first tap anywhere on the page,
+//   grants the page a standing allowance so every later play() call — even
+//   ones that happen long after their triggering tap — is honoured for the
+//   rest of the session.
+// ============================================================
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
+let audioUnlocked = false;
+
+function unlockAudioForSession() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  lipSync.ensureGraph();   // the AudioContext behind lip sync needs the same unlock
+  try {
+    new Audio(SILENT_WAV).play().catch(() => {});
+  } catch { /* best effort — a failed unlock just means the old behaviour */ }
+}
+document.addEventListener('pointerdown', unlockAudioForSession, { once: true, capture: true });
+
+// ============================================================
 //   SPEECH
 // ============================================================
 let currentAudio = null;
@@ -352,6 +377,7 @@ function setCategory(cat, btn) {
   currentIndex = 0;
   document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
   btn.classList.add('is-active');
+  if (armedDeleteKey) disarmDelete();   // switching tabs cancels a pending delete
   updateDisplay();
   sayWord();
 }
@@ -694,6 +720,13 @@ async function loadCollections() {
   renderDeckTabs();
 }
 
+// A single accidental tap must never delete a collection. The × arms itself
+// on the first tap (becomes a ✓, "tap again to delete") and only the second,
+// deliberate tap on that same control actually removes anything; it quietly
+// disarms after a few seconds or as soon as anything else is tapped.
+let armedDeleteKey = null;
+let armedDeleteTimer = null;
+
 function renderDeckTabs() {
   const tabsEl = document.getElementById('deck-tabs');
   tabsEl.querySelectorAll('.deck-tab-custom').forEach(el => el.remove());
@@ -710,15 +743,38 @@ function renderDeckTabs() {
     label.className = 'deck-tab-label';
     label.onclick = () => setCategory(coll._key, btn);
 
+    const armed = coll._key === armedDeleteKey;
     const del = document.createElement('span');
-    del.className = 'deck-tab-del';
-    del.textContent = '×';
-    del.title = `Remove "${coll.name}"`;
-    del.onclick = e => { e.stopPropagation(); removeCollection(coll._key); };
+    del.className = 'deck-tab-del' + (armed ? ' confirming' : '');
+    del.textContent = armed ? '✓' : '×';
+    del.title = armed ? `Tap again to delete "${coll.name}"` : `Remove "${coll.name}"`;
+    del.onclick = e => {
+      e.stopPropagation();
+      if (armed) {
+        clearTimeout(armedDeleteTimer);
+        armedDeleteKey = null;
+        removeCollection(coll._key);
+      } else {
+        armDelete(coll._key);
+      }
+    };
 
     btn.append(label, del);
     tabsEl.appendChild(btn);
   });
+}
+
+function armDelete(key) {
+  armedDeleteKey = key;
+  clearTimeout(armedDeleteTimer);
+  armedDeleteTimer = setTimeout(disarmDelete, 2600);
+  renderDeckTabs();
+}
+
+function disarmDelete() {
+  clearTimeout(armedDeleteTimer);
+  armedDeleteKey = null;
+  renderDeckTabs();
 }
 
 async function removeCollection(key) {

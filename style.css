@@ -323,10 +323,13 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .deck-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  width: 100%;
 }
 .deck-tabs {
   display: flex;
+  justify-content: center;
   gap: 6px;
   flex-wrap: wrap;
 }
@@ -373,7 +376,17 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-size: 0.85rem;
   line-height: 1;
   opacity: 0.55;
-  transition: opacity 150ms, background 150ms;
+  transition: opacity 150ms, background 150ms, transform 150ms;
+}
+/* Armed by a first tap — asks for the second, deliberate tap before anything
+   is actually deleted. Impossible to miss: fills solid coral and grows. */
+.deck-tab-del.confirming {
+  width: 20px;
+  height: 20px;
+  opacity: 1;
+  color: #fff;
+  background: var(--coral);
+  transform: scale(1.1);
 }
 /* A 16px dot is too small to tap reliably next to the label it shares a
    button with — this quietly extends the real tap area to ~44px without
