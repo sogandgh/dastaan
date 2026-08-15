@@ -395,17 +395,33 @@ body {
     gap: 6px;
   }
 
+  /* The bubble sits above the character and hugs its text rather than
+     stretching the full width of the row. */
+  .character-panel {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+
   .speech-bubble {
-    width: 100%;
+    width: auto;
+    max-width: 88vw;
     font-size: 0.9rem;
     padding: 8px 14px;
     min-height: 40px;
+    order: 1;
   }
 
-  /* Bluey and button side by side */
-  .bluey-wrap { flex-shrink: 0; }
+  .bluey-wrap {
+    flex-shrink: 0;
+    order: 2;
+  }
 
-  .greeting-nav { margin-top: 12px; }
+  /* Below the character, not on top of it. */
+  .greeting-nav {
+    order: 3;
+    margin-top: 4px;
+    justify-content: center;
+  }
 
 
   .learn-panel {
