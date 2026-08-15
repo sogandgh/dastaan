@@ -148,7 +148,7 @@ async function speakText(text) {
  * child waits for. Later chunks are longer, which reads more naturally and
  * costs fewer requests.
  */
-function splitForNarration(text, firstMax = 90, restMax = 240) {
+function splitForNarration(text, firstMax = 150, restMax = 240) {
   const sentences = text.match(/[^.؟!…]+[.؟!…]*\s*/g) || [text];
   const chunks = [];
   let buf = '';
@@ -180,19 +180,37 @@ async function speakStory(text, onProgress) {
   const chunks = splitForNarration(text);
   setLoading(true);
 
-  let pending;
+  // Synthesise several chunks at once rather than one-at-a-time: a chunk needs
+  // to be ready before the previous one stops playing, and one chunk of lead
+  // time is not enough to cover a longer chunk's synthesis.
+  const LOOKAHEAD = 2;
+  const pending = new Array(chunks.length).fill(null);
+  const start = i => {
+    if (i < chunks.length && !pending[i]) pending[i] = synthesize(chunks[i], voiceId);
+  };
+  for (let i = 0; i <= LOOKAHEAD; i++) start(i);
+
   try {
-    pending = synthesize(chunks[0], voiceId);
-    const url = await pending;
+    const first = await pending[0];
     if (token !== speakToken) return;
+
+    // Give the second chunk a moment to land before starting, so the seam after
+    // the short opening chunk doesn't gap. Bounded, so a slow request can't
+    // hold up the whole story.
+    if (chunks.length > 1) {
+      await Promise.race([
+        pending[1],
+        new Promise(r => setTimeout(r, 2000)),
+      ]);
+      if (token !== speakToken) return;
+    }
     setLoading(false);
 
     for (let i = 0; i < chunks.length; i++) {
-      const thisUrl = i === 0 ? url : await pending;
+      const thisUrl = i === 0 ? first : await pending[i];
       if (token !== speakToken) return;
 
-      // Start the next chunk before playing this one, so synthesis overlaps playback.
-      if (i + 1 < chunks.length) pending = synthesize(chunks[i + 1], voiceId);
+      start(i + LOOKAHEAD);   // keep the buffer topped up
 
       onProgress?.(i + 1, chunks.length);
       const outcome = await playClip(thisUrl, token);
