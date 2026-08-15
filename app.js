@@ -692,9 +692,12 @@ async function refreshVoices() {
       voiceSelect.appendChild(o);
     });
     if (!saved && voices.length) {
-      // Laura is the default — young and bright suits Bluey. Fall back to
-      // the first voice in the account if Laura isn't in it.
-      const preferred = voices.find(v => v.name === 'Laura') || voices[0];
+      // Laura is the default — young and bright suits Bluey. ElevenLabs'
+      // premade voices carry their tagline in the name field itself
+      // ("Laura - Enthusiast, Quirky Attitude"), so this has to match the
+      // start of it rather than the bare name. Falls back to the first
+      // voice in the account if Laura isn't in it.
+      const preferred = voices.find(v => v.name.split(' - ')[0].trim() === 'Laura') || voices[0];
       setVoice(preferred.voice_id);
       voiceSelect.value = preferred.voice_id;
     }
