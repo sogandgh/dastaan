@@ -169,7 +169,8 @@ Rules:
 - Vivid but simple descriptions — concrete things a toddler has actually seen, not abstract ideas.
 - Warm and gentle throughout. Never scary, sad, violent, or sarcastic. A satisfying, happy ending.
 - Don't moralise, and don't let a lesson feel forced — if the story is teaching something, it should come through what happens, never through being told.
-- Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).`;
+- Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
+- The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in Persian. Don't overuse them — most sentences need none.`;
 }
 
 /**

@@ -555,9 +555,15 @@ async function startStory() {
 }
 
 /** Shared by a fresh story and by replaying one from the history. */
+/** Delivery tags like [giggles] are for the voice, not the reader — the
+ *  parent following along on screen shouldn't see stage directions. */
+function stripDeliveryTags(text) {
+  return text.replace(/\[[^\]]*\]/g, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
 async function playStory(story, label) {
   playThemeEl.textContent = label;
-  storyTextEl.textContent = story;
+  storyTextEl.textContent = stripDeliveryTags(story);
   setMode('play');
   // The first chunk takes a few seconds to synthesise. Say so, otherwise a
   // motionless Bluey reads as broken rather than as getting ready.
@@ -685,9 +691,12 @@ async function refreshVoices() {
       if (saved === v.voice_id) o.selected = true;
       voiceSelect.appendChild(o);
     });
-    if (!saved && voices[0]) {
-      setVoice(voices[0].voice_id);
-      voiceSelect.value = voices[0].voice_id;
+    if (!saved && voices.length) {
+      // Laura is the default — young and bright suits Bluey. Fall back to
+      // the first voice in the account if Laura isn't in it.
+      const preferred = voices.find(v => v.name === 'Laura') || voices[0];
+      setVoice(preferred.voice_id);
+      voiceSelect.value = preferred.voice_id;
     }
     statusEl.textContent = `${voices.length} voices available.`;
   } catch (e) {
