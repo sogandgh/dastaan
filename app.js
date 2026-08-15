@@ -35,7 +35,7 @@ const lipSync = {
       this.buffer = new Uint8Array(this.analyser.fftSize);
       this.analyser.connect(this.ctx.destination);
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
     return true;
   },
 
@@ -131,6 +131,23 @@ const lipSync = {
 //   the app ever plays (words, greetings, every story chunk), so the exact
 //   element that got blessed on first tap is the same one still playing
 //   five minutes and one LLM call later.
+//
+//   There is a second, separate unlock hiding here: the first time any clip
+//   plays, lip sync routes `sharedAudio` through a Web Audio graph
+//   (createMediaElementSource → analyser → destination) — and from that
+//   moment on, ALL of its sound depends on that AudioContext being
+//   'running', not just on the element being allowed to play. Resuming a
+//   suspended AudioContext also needs a trusted gesture, same as
+//   audio.play(). A story that plays through — text and pictures advancing
+//   right on schedule, no error — but with no sound at all is exactly what
+//   a *still-suspended* context looks like: the element's own play()
+//   already got blessed, so play() succeeds and the clip runs its full
+//   duration on mute, silently. Resuming used to get exactly one
+//   trusted-gesture attempt, ever ({ once: true }) — if that first attempt
+//   didn't fully take (plausible before the audio hardware has warmed up
+//   at all), nothing ever tried again for the rest of that page load.
+//   Every tap now gets another shot at it; resuming an already-running
+//   context is a harmless no-op, so this costs nothing when it's not needed.
 // ============================================================
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
 const sharedAudio = new Audio();
@@ -138,15 +155,15 @@ sharedAudio.preload = 'auto';
 let audioUnlocked = false;
 
 function unlockAudioForSession() {
+  lipSync.ensureGraph();   // safe every time: a no-op once the context is already running
   if (audioUnlocked) return;
   audioUnlocked = true;
-  lipSync.ensureGraph();   // the AudioContext behind lip sync needs the same unlock
   try {
     sharedAudio.src = SILENT_WAV;
     sharedAudio.play().catch(() => {});
   } catch { /* best effort — a failed unlock just means the old behaviour */ }
 }
-document.addEventListener('pointerdown', unlockAudioForSession, { once: true, capture: true });
+document.addEventListener('pointerdown', unlockAudioForSession, { capture: true });
 
 // ============================================================
 //   SPEECH
@@ -542,6 +559,12 @@ function resetStoryForm() {
 }
 
 async function startStory() {
+  // One more direct shot at resuming the AudioContext, tied to this exact
+  // click — the most important gesture to get right, since everything the
+  // story is about to say depends on it. Cheap insurance on top of the
+  // page-wide pointerdown listener; a no-op if already running.
+  lipSync.ensureGraph();
+
   if (storyController) {           // already generating — this tap means cancel
     storyController.abort();
     return;
