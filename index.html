@@ -148,31 +148,38 @@
         </button>
       </div>
 
-      <div class="card" id="card" onclick="sayWord()" role="button" tabindex="0"
-           aria-label="Hear this word">
-        <button class="card-add" id="card-add" onclick="openAddWordForCurrent(event)" aria-label="Add another word" hidden>
+      <!-- The card and the "add another word" control are side by side, so
+           adding never covers or crowds the card itself. -->
+      <div class="card-row">
+        <div class="card-slot">
+          <div class="card" id="card" onclick="sayWord()" role="button" tabindex="0"
+               aria-label="Hear this word">
+            <button class="card-del" id="card-del" onclick="deleteCurrentCard(event)" aria-label="Remove this word" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+            <div class="card-art">
+              <img id="disp-emoji" src="pictures/animals/bird.png" alt="">
+            </div>
+            <p class="card-word" id="disp-word" dir="rtl" lang="fa">پرنده</p>
+            <div class="card-foot">
+              <span class="counter" id="counter">1 / 9</span>
+              <div class="dots" id="dots"></div>
+            </div>
+          </div>
+
+          <!-- Shown instead of the card when a collection has nothing in it yet -->
+          <div class="card card-empty" id="card-empty" onclick="openAddWordForCurrent(event)" role="button" tabindex="0" hidden>
+            <span class="card-empty-icon">＋</span>
+            <p>Add your first word</p>
+            <p class="card-empty-sub">Any word, in English or Farsi</p>
+          </div>
+        </div>
+
+        <button class="card-add-outside" id="card-add" onclick="openAddWordForCurrent(event)" aria-label="Add another word" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
                stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
-        <button class="card-del" id="card-del" onclick="deleteCurrentCard(event)" aria-label="Remove this word" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
-        <div class="card-art">
-          <img id="disp-emoji" src="pictures/animals/bird.png" alt="">
-        </div>
-        <p class="card-word" id="disp-word" dir="rtl" lang="fa">پرنده</p>
-        <div class="card-foot">
-          <span class="counter" id="counter">1 / 9</span>
-          <div class="dots" id="dots"></div>
-        </div>
-      </div>
-
-      <!-- Shown instead of the card when a collection has nothing in it yet -->
-      <div class="card card-empty" id="card-empty" onclick="openAddWordForCurrent(event)" role="button" tabindex="0" hidden>
-        <span class="card-empty-icon">＋</span>
-        <p>Add your first word</p>
-        <p class="card-empty-sub">Any word, in English or Farsi</p>
       </div>
 
       <div class="deck-nav">

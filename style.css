@@ -421,24 +421,36 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .card-del:hover { color: var(--coral); background: #FFF3EF; transform: scale(1.08); }
 
 /* Add-another-word, mirrored to the opposite corner from delete. */
-.card-add[hidden] { display: none; }
-.card-add {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 2;
+/* The card and its "add another word" button sit side by side, outside the
+   card's own box — the button only takes up space when it's actually shown
+   (display:none removes it from the flex row), so the card is full width
+   again on the built-in decks where the button never appears. */
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+.card-slot {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-add-outside[hidden] { display: none; }
+.card-add-outside {
+  flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  color: var(--ink-faint);
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: var(--shadow-sm);
-  transition: color 180ms, background 180ms, transform 180ms;
+  color: var(--blue);
+  background: var(--paper);
+  box-shadow: var(--shadow-md);
+  transition: color 180ms, transform 180ms;
 }
-.card-add svg { width: 14px; height: 14px; }
-.card-add:hover { color: var(--blue); background: #F0F7FE; transform: scale(1.08); }
+.card-add-outside svg { width: 19px; height: 19px; }
+.card-add-outside:hover { color: var(--blue-deep); transform: scale(1.1); }
 
 /* "My Words" with nothing in it yet — an invitation, not a blank card. */
 .card-empty[hidden] { display: none; }

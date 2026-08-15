@@ -1,33 +1,42 @@
 # Farsi with Bluey
 
-A Persian-language app for kids, built around a CSS-drawn Bluey who speaks. Two things
-it's for:
+A Persian-language learning app built around a CSS-drawn Bluey who actually talks — real
+ElevenLabs voice, mouth moving to the audio, not a recording. Three things it does:
 
-**Teach your kid Farsi.** Set it up in a couple of minutes and let your child tap
-through animal and body-part flashcards. Bluey says each word aloud in Persian, mouth
-moving with the audio.
+**Teach your kid Farsi.** Animal and body-part flashcards, ready out of the box. Tap a
+card, Bluey says the word in Persian.
 
-**Tell them a story your way.** Pick a focus — potty training, bedtime, brushing teeth,
-trying new food, sharing, big feelings — or type your own idea, in English or Persian.
-Bluey narrates a short Farsi story built around it, while your kid just watches him.
+**Grow the vocabulary yourself.** Create a collection — Colors, Family, whatever your
+kid is into this week — and add words to it by typing them, in English or Persian.
+Bluey translates it, generates an illustration for it, and learns to say it, all in one
+step.
+
+**Tell a bedtime story your way.** Pick a focus — potty training, bedtime, brushing
+teeth, trying new food, sharing, big feelings — or type your own idea. Bluey narrates a
+short Farsi story built around it while your kid just watches him, no reading required.
 
 ## Screenshots
 
-| Learn | Story setup | Story time |
-|---|---|---|
-| ![Learn screen](docs/screenshot-learn.png) | ![Story setup screen](docs/screenshot-story-setup.png) | ![Story playing screen](docs/screenshot-story-playing.png) |
+![Learn screen](docs/screenshot-learn.png)
 
-## Requirements
+![Adding a word — Bluey translates it, illustrates it, and asks for confirmation before saving](docs/screenshot-add-word.png)
 
-**Runtime — nothing to install.** The frontend is plain HTML/CSS/ES modules and the
-server (`server.js`) uses only the Node standard library. No `npm install`, no
-framework, no build step.
+![Story setup screen](docs/screenshot-story-setup.png)
+
+![Story playing screen](docs/screenshot-story-playing.png)
+
+## How it's built
+
+Static HTML/CSS/ES modules on the frontend, a Node server with no framework and no
+dependencies. That's a deliberate choice, not a limitation: nothing to `npm install`,
+no build step, no version drift — clone it and it runs, on a laptop or a $6/month
+droplet, exactly the same way five years from now.
 
 | Needed | Version | Why |
 |---|---|---|
 | [Node.js](https://nodejs.org) | 18+ | Runs `server.js`. Needs built-in `fetch`. |
-| [ElevenLabs API](https://elevenlabs.io/docs) key | — | Text-to-speech. Needs `text_to_speech` and `voices_read` permissions. |
-| [OpenAI API](https://platform.openai.com/api-keys) key | — | Writes the Farsi stories. Only needed for the Story tab. |
+| [ElevenLabs API](https://elevenlabs.io/docs) key | — | Voices Bluey. Needs `text_to_speech` and `voices_read` permissions. |
+| [OpenAI API](https://platform.openai.com/api-keys) key | — | Writes the stories and generates card illustrations. |
 
 ## How to run
 
@@ -35,7 +44,7 @@ framework, no build step.
 git clone https://github.com/sogandgh/farsi-bluey.git
 cd farsi-bluey
 export ELEVENLABS_API_KEY=sk_your_key_here
-export OPENAI_API_KEY=sk-your_key_here      # only needed for Story mode
+export OPENAI_API_KEY=sk-your_key_here
 node server.js
 ```
 
@@ -43,30 +52,30 @@ Open **http://localhost:8000**. Voices load automatically from your ElevenLabs a
 change which one Bluey uses from the ⚙️ panel.
 
 `PORT` overrides the port (default `8000`); `OPENAI_MODEL` overrides the story model
-(default `gpt-5-mini`).
-
-> The API keys are read from the environment by the server and never reach the browser.
-> There is no key anywhere in this repo and no config file to put one in.
+(default `gpt-5-mini`); `OPENAI_IMAGE_MODEL` overrides the illustration model (default
+`gpt-image-1-mini`).
 
 To reach it from a phone on the same wifi, use your computer's LAN IP instead of
 `localhost`, e.g. `http://10.0.0.108:8000`.
 
 ## Adding vocabulary
 
-Add an entry to the relevant array in `app.js`, and drop the image in `pictures/`:
+The app ships with two ready-made decks — animals and face & body. Beyond that, add
+words from inside the app:
 
-```js
-{ img: 'pictures/animals/duck.png', word: 'اردک' }
-```
+1. Tap **+** next to the deck tabs and name a new collection.
+2. Tap the **+** beside the card to add a word to it — type it in English or Persian.
+3. Bluey shows you the translation and the picture he generated. Confirm it, or try
+   another word.
 
-No recording needed — the word is synthesised the first time it's tapped, then cached.
+Every collection and card is saved in the browser (IndexedDB) and reloads with the app.
+No code to edit, no image to source, no recording to make.
 
 ## Notes
 
-Persian is only supported by the `eleven_v3` model, so the TTS model is fixed. Bluey's
-mouth is driven by the loudness of the audio itself (a Web Audio `AnalyserNode`), not by
-a canned animation.
+Persian is only supported by ElevenLabs' `eleven_v3` model, so that's the TTS model this
+app is built around.
 
 Bluey is a creation of [Ludo Studio](https://www.ludostudio.com.au/). This is an
-unaffiliated personal project, not endorsed by or connected to the
-rights holders, and not for commercial use.
+unaffiliated personal project, not endorsed by or connected to the rights holders, and
+not for commercial use.
