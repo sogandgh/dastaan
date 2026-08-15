@@ -377,7 +377,6 @@ function setCategory(cat, btn) {
   currentIndex = 0;
   document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
   btn.classList.add('is-active');
-  if (armedDeleteKey) disarmDelete();   // switching tabs cancels a pending delete
   updateDisplay();
   sayWord();
 }
@@ -631,6 +630,25 @@ function leaveStory() {
 }
 
 // ============================================================
+//   CONFIRM DIALOG  — shared by collection and card deletion
+// ============================================================
+const confirmDialogEl = document.getElementById('confirm-dialog');
+const confirmTitleEl  = document.getElementById('confirm-title');
+const confirmMsgEl    = document.getElementById('confirm-message');
+const confirmDangerBtn = document.getElementById('confirm-danger-btn');
+
+function openConfirmDialog(title, message, onConfirm) {
+  confirmTitleEl.textContent = title;
+  confirmMsgEl.textContent = message;
+  confirmDangerBtn.onclick = () => { closeConfirmDialog(); onConfirm(); };
+  confirmDialogEl.classList.add('open');
+}
+
+function closeConfirmDialog() {
+  confirmDialogEl.classList.remove('open');
+}
+
+// ============================================================
 //   SETTINGS
 // ============================================================
 const settingsEl  = document.getElementById('settings');
@@ -730,13 +748,6 @@ async function loadCollections() {
   }
 }
 
-// A single accidental tap must never delete a collection. The × arms itself
-// on the first tap (becomes a ✓, "tap again to delete") and only the second,
-// deliberate tap on that same control actually removes anything; it quietly
-// disarms after a few seconds or as soon as anything else is tapped.
-let armedDeleteKey = null;
-let armedDeleteTimer = null;
-
 function renderDeckTabs() {
   const tabsEl = document.getElementById('deck-tabs');
   tabsEl.querySelectorAll('.deck-tab-custom').forEach(el => el.remove());
@@ -753,38 +764,22 @@ function renderDeckTabs() {
     label.className = 'deck-tab-label';
     label.onclick = () => setCategory(coll._key, btn);
 
-    const armed = coll._key === armedDeleteKey;
     const del = document.createElement('span');
-    del.className = 'deck-tab-del' + (armed ? ' confirming' : '');
-    del.textContent = armed ? '✓' : '×';
-    del.title = armed ? `Tap again to delete "${coll.name}"` : `Remove "${coll.name}"`;
+    del.className = 'deck-tab-del';
+    del.textContent = '×';
+    del.title = `Remove "${coll.name}"`;
     del.onclick = e => {
       e.stopPropagation();
-      if (armed) {
-        clearTimeout(armedDeleteTimer);
-        armedDeleteKey = null;
-        removeCollection(coll._key);
-      } else {
-        armDelete(coll._key);
-      }
+      openConfirmDialog(
+        'Delete this collection?',
+        `"${coll.name}" and every word in it will be gone for good.`,
+        () => removeCollection(coll._key)
+      );
     };
 
     btn.append(label, del);
     tabsEl.appendChild(btn);
   });
-}
-
-function armDelete(key) {
-  armedDeleteKey = key;
-  clearTimeout(armedDeleteTimer);
-  armedDeleteTimer = setTimeout(disarmDelete, 2600);
-  renderDeckTabs();
-}
-
-function disarmDelete() {
-  clearTimeout(armedDeleteTimer);
-  armedDeleteKey = null;
-  renderDeckTabs();
 }
 
 async function removeCollection(key) {
@@ -970,12 +965,20 @@ async function confirmNewWord() {
   sayWord();
 }
 
-async function deleteCurrentCard(event) {
+function deleteCurrentCard(event) {
   event.stopPropagation();   // the card itself also opens sayWord() on click
   if (isBuiltinCategory(currentCategory)) return;
   const item = categories[currentCategory]?.[currentIndex];
   if (!item) return;
 
+  openConfirmDialog(
+    'Delete this word?',
+    `"${item.word}" will be gone for good.`,
+    () => reallyDeleteCard(item)
+  );
+}
+
+async function reallyDeleteCard(item) {
   await deleteCard(item._key);
   await loadCardsFor(currentCategory);
   currentIndex = Math.min(currentIndex, Math.max(0, categories[currentCategory].length - 1));
@@ -993,8 +996,27 @@ Object.assign(window, {
   openSettings, closeSettings, clearAudioCache,
   openNewCollection, closeNewCollection, submitNewCollection,
   openAddWordForCurrent, closeAddWord, generateNewWord, retryNewWord, confirmNewWord,
-  deleteCurrentCard,
+  deleteCurrentCard, closeConfirmDialog,
   __lipSync: lipSync,
+});
+
+// Tapping the dimmed backdrop closes whichever sheet is open — but not a tap
+// that started inside the sheet and merely ended over the backdrop (e.g.
+// selecting text). Each sheet's own close function runs, not a blind class
+// toggle, so state that needs resetting (a pending generated card, etc.)
+// still gets reset correctly.
+const SHEET_CLOSERS = {
+  'settings':       closeSettings,
+  'add-word':       closeAddWord,
+  'new-collection': closeNewCollection,
+  'confirm-dialog': closeConfirmDialog,
+};
+document.querySelectorAll('.sheet-overlay').forEach(overlay => {
+  let downOnBackdrop = false;
+  overlay.addEventListener('pointerdown', e => { downOnBackdrop = (e.target === overlay); });
+  overlay.addEventListener('click', e => {
+    if (downOnBackdrop && e.target === overlay) (SHEET_CLOSERS[overlay.id] || (() => {}))();
+  });
 });
 
 renderThemes();

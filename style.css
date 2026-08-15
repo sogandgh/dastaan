@@ -378,16 +378,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   opacity: 0.55;
   transition: opacity 150ms, background 150ms, transform 150ms;
 }
-/* Armed by a first tap — asks for the second, deliberate tap before anything
-   is actually deleted. Impossible to miss: fills solid coral and grows. */
-.deck-tab-del.confirming {
-  width: 20px;
-  height: 20px;
-  opacity: 1;
-  color: #fff;
-  background: var(--coral);
-  transform: scale(1.1);
-}
 /* A 16px dot is too small to tap reliably next to the label it shares a
    button with — this quietly extends the real tap area to ~44px without
    changing how big the × looks, so a thumb hits it and not the tab label. */
@@ -446,6 +436,17 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .card-slot {
   flex: 1;
   min-width: 0;
+}
+/* card-slot is flex:1, so when the add button only exists on the right, the
+   card itself — the thing the eye actually centers on — drifts left of true
+   center by roughly the button's own width. A matching invisible weight on
+   the left balances it, but only while the button is actually showing;
+   otherwise (Animals, Face & body, an empty collection) it would just be a
+   permanent phantom gap on the wrong side. */
+.card-row:has(> .card-add-outside:not([hidden]))::before {
+  content: '';
+  flex-shrink: 0;
+  width: 46px;
 }
 
 .card-add-outside[hidden] { display: none; }
@@ -927,6 +928,22 @@ body.preparing .stop-btn { display: none; }
   background: #F1F5F9;
 }
 .ghost-btn:hover { background: #E6EDF5; }
+
+/* A distinct, more serious red — --coral is already the app's happy primary
+   action color (Start the story, etc.), so it can't also read as "this is
+   destructive" without a genuinely different color to contrast against it. */
+.sheet-danger h2::before {
+  content: '⚠️';
+  margin-right: 8px;
+}
+/* .sheet-actions .start-btn (below) sets background: var(--ink) at higher
+   specificity than a single .danger-btn class, so the override has to match
+   it exactly or the "Delete" button silently renders in the ordinary navy. */
+.sheet-actions .danger-btn {
+  background: #D64545;
+  box-shadow: 0 12px 26px -12px #D64545;
+}
+.sheet-actions .danger-btn:hover { background: #B93636; }
 
 /* Preview of a newly generated card, shown inside the "Add a word" sheet.
    An unqualified display:flex here would beat the UA [hidden] rule (author

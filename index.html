@@ -307,6 +307,18 @@
     </div>
   </div>
 
+  <!-- ── Confirm before deleting anything — shared by collections and cards ── -->
+  <div class="sheet-overlay" id="confirm-dialog">
+    <div class="sheet sheet-danger">
+      <h2 id="confirm-title">Delete this?</h2>
+      <p class="note" id="confirm-message"></p>
+      <div class="sheet-actions">
+        <button class="ghost-btn" onclick="closeConfirmDialog()">Cancel</button>
+        <button class="start-btn danger-btn" id="confirm-danger-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Settings ── -->
   <div class="sheet-overlay" id="settings">
     <div class="sheet">

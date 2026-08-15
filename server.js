@@ -54,6 +54,29 @@ function sendJson(res, status, body) {
   res.end(payload);
 }
 
+/**
+ * Every outbound call to ElevenLabs or OpenAI goes through here. Plain
+ * `fetch` has no overall timeout in Node — if either provider ever hangs,
+ * a request would otherwise wait forever and a parent would just see a
+ * spinner that never resolves. On timeout or any network-level failure this
+ * throws a plain, non-technical Error; callers don't need their own
+ * try/catch for that case, only for reading the response once it exists.
+ */
+async function fetchWithTimeout(url, options = {}, ms = 20000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      throw new Error("That's taking longer than it should. Please try again.");
+    }
+    throw new Error("Couldn't reach the server right now. Please try again.");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function requireKey(res) {
   if (API_KEY) return true;
   sendJson(res, 500, {
@@ -78,9 +101,9 @@ async function upstreamError(upstream) {
 async function handleVoices(res) {
   if (!requireKey(res)) return;
 
-  const upstream = await fetch(`${API_ROOT}/v2/voices?page_size=100`, {
+  const upstream = await fetchWithTimeout(`${API_ROOT}/v2/voices?page_size=100`, {
     headers: { 'xi-api-key': API_KEY },
-  });
+  }, 10000);
   if (!upstream.ok) return sendJson(res, upstream.status, { error: await upstreamError(upstream) });
 
   const data = await upstream.json();
@@ -108,13 +131,14 @@ async function handleTts(req, res) {
   if (!text)    return sendJson(res, 400, { error: 'Nothing to say.' });
   if (!voiceId) return sendJson(res, 400, { error: 'No voice selected.' });
 
-  const upstream = await fetch(
+  const upstream = await fetchWithTimeout(
     `${API_ROOT}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${OUT_FMT}`,
     {
       method: 'POST',
       headers: { 'xi-api-key': API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, model_id: MODEL_ID, voice_settings: VOICE_SETTINGS }),
-    }
+    },
+    30000
   );
   if (!upstream.ok) return sendJson(res, upstream.status, { error: await upstreamError(upstream) });
 
@@ -189,7 +213,7 @@ async function handleStory(req, res) {
     return sendJson(res, 400, { error: 'Pick a focus or say what the story is about.' });
   }
 
-  const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+  const upstream = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${OPENAI_KEY}`,
@@ -205,7 +229,7 @@ async function handleStory(req, res) {
         { role: 'user',   content: userPrompt },
       ],
     }),
-  });
+  }, 30000);
 
   if (!upstream.ok) {
     let detail = `OpenAI error ${upstream.status}.`;
@@ -247,7 +271,7 @@ markdown fences:
   rather than refusing.`;
 
 async function translateWord(word) {
-  const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+  const upstream = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -258,7 +282,7 @@ async function translateWord(word) {
         { role: 'user',   content: word },
       ],
     }),
-  });
+  }, 20000);
   if (!upstream.ok) throw new Error(await openaiErrorMessage(upstream));
 
   const data = await upstream.json();
@@ -278,7 +302,7 @@ async function generateCardImage(wordEn) {
     `centered, simple bold shapes, bright cheerful colors, soft shading, solid white ` +
     `background, no text, no watermark, no border`;
 
-  const upstream = await fetch('https://api.openai.com/v1/images/generations', {
+  const upstream = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -288,7 +312,7 @@ async function generateCardImage(wordEn) {
       quality: 'low',
       n: 1,
     }),
-  });
+  }, 45000);
   if (!upstream.ok) throw new Error(await openaiErrorMessage(upstream));
 
   const data = await upstream.json();
