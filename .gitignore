@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Local Claude Code config — contains machine-specific absolute paths
+.claude/
+
+# Secrets — the ElevenLabs key lives in browser localStorage, never on disk.
+# These patterns exist so an accidental local config file can't be committed.
+.env
+.env.*
+config.local.js
+*.key
+
+# Personal voice recordings (the app now synthesises speech instead)
+audio/

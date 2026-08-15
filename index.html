@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Learn with Bluey!</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="bluey.css">
+</head>
+<body>
+
+  <div class="scene">
+    <div class="sky"></div>
+    <div class="cloud cloud-a"></div>
+    <div class="cloud cloud-b"></div>
+    <div class="cloud cloud-c"></div>
+    <div class="ground"></div>
+  </div>
+
+  <div class="app">
+
+    <!-- ── LEFT: Bluey character ── -->
+    <div class="character-panel">
+      <div class="char-switch">
+        <button class="char-btn active" id="btn-bluey" onclick="switchChar('bluey')">Bluey</button>
+        <button class="char-btn" id="btn-bingo" onclick="switchChar('bingo')">Bingo</button>
+      </div>
+<div class="speech-bubble" id="bubble">
+        <span id="bubble-text">سلام لی‌لی 🐾</span>
+      </div>
+      <div class="bluey-wrap" id="bluey-wrap" onclick="playHi()" title="Tap me!">
+        <div class="bluey-stage">
+          <div class="bluey" id="bluey">
+            <div class="main-body">
+              <div class="tummy"></div>
+              <div class="snout-outline1"></div>
+              <div class="snout-outline2"></div>
+              <div class="big-spot1"></div>
+              <div class="big-spot2"></div>
+              <div class="little-spot1"></div>
+              <div class="little-spot2"></div>
+              <div class="snout-blue-strip1"></div>
+              <div class="snout-blue-strip2"></div>
+              <div class="snout-blue-strip3"></div>
+              <div class="mouth1"></div>
+              <div class="mouth2"></div>
+              <div class="eye1"><div class="pupil1"></div></div>
+              <div class="eye2"><div class="pupil2"></div></div>
+            </div>
+            <div class="tummy-bottom"></div>
+            <div class="background-snout1"></div>
+            <div class="background-snout2"></div>
+            <div class="nose-left"></div>
+            <div class="nose-top"></div>
+            <div class="nose-right"></div>
+            <div class="nose-shine"></div>
+            <div class="ear1-left"></div>
+            <div class="ear1-right"></div>
+            <div class="ear1-inner"></div>
+            <div class="ear2-left"></div>
+            <div class="ear2-right"></div>
+            <div class="ear2-inner"></div>
+            <div class="eyebrows">
+              <div class="eyebrow-l1"></div>
+              <div class="eyebrow-l2"></div>
+              <div class="eyebrow-l-inner"></div>
+              <div class="eyebrow-r1"></div>
+              <div class="eyebrow-r2"></div>
+              <div class="eyebrow-r-inner"></div>
+            </div>
+            <div class="arm-group">
+              <div class="arm"></div>
+              <div class="armband"></div>
+              <div class="hand"></div>
+              <div class="finger1"></div>
+              <div class="finger2"></div>
+              <div class="finger3"></div>
+              <div class="finger4"></div>
+            </div>
+            <div class="leg-l1"></div>
+            <div class="legband1"></div>
+            <div class="leg-l2"></div>
+            <div class="footl"></div>
+            <div class="toe-l1"></div>
+            <div class="toe-l2"></div>
+            <div class="leg-r1"></div>
+            <div class="legband2"></div>
+            <div class="leg-r2"></div>
+            <div class="footr"></div>
+            <div class="toe-r1"></div>
+            <div class="toe-r2"></div>
+            <div class="tail">
+              <div class="tail-bottom1"></div>
+              <div class="tail-top1"></div>
+              <div class="tail-band"></div>
+              <div class="tail-end1"></div>
+              <div class="tail-end2"></div>
+              <div class="tail-end-middle"></div>
+              <div class="tail-fluff1"></div>
+              <div class="tail-fluff2"></div>
+            </div>
+            <div class="body-outline"></div>
+          </div>
+        </div>
+      </div>
+      <div class="greeting-nav">
+        <button class="greet-arrow" onclick="changeGreeting(1)">&#9654;</button>
+        <button class="greet-arrow" onclick="changeGreeting(-1)">&#9664;</button>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: Learning card ── -->
+    <div class="learn-panel">
+      <h1>Learn with <span>Bluey!</span></h1>
+
+      <div class="slideshow">
+        <button class="arrow-btn" onclick="navigate(-1)">&#9664;</button>
+        <div class="card" id="card" onclick="sayWord()" style="cursor:pointer">
+          <img class="card-emoji" id="disp-emoji" src="pictures/animals/bird.png" alt="BIRD">
+          <div class="card-word" id="disp-word">ONE</div>
+          <div class="card-counter" id="counter">1 / 10</div>
+          <div class="dots" id="dots"></div>
+        </div>
+        <button class="arrow-btn" onclick="navigate(1)">&#9654;</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Settings: API key + voices, stored in this browser only ── -->
+  <button class="settings-btn" onclick="openSettings()" title="Voice settings">⚙️</button>
+
+  <div class="settings-overlay" id="settings">
+    <div class="settings-panel">
+      <h2>Voice settings</h2>
+
+      <label for="api-key">ElevenLabs API key</label>
+      <input type="password" id="api-key" placeholder="sk_…" autocomplete="off" spellcheck="false">
+      <p class="hint">
+        Stored in this browser's localStorage — never sent anywhere except ElevenLabs,
+        and never committed to this repo.
+        <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">Get a key</a>
+      </p>
+      <button class="settings-action" onclick="saveKey()">Save key &amp; load voices</button>
+
+      <label for="voice-bluey">Bluey's voice</label>
+      <select id="voice-bluey"></select>
+
+      <label for="voice-bingo">Bingo's voice</label>
+      <select id="voice-bingo"></select>
+
+      <p class="settings-status" id="settings-status"></p>
+
+      <div class="settings-footer">
+        <button class="settings-secondary" onclick="clearAudioCache()">Clear cached audio</button>
+        <button class="settings-action" onclick="closeSettings()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

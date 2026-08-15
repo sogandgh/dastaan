@@ -1,0 +1,674 @@
+/* ============================================================
+   BLUEY CSS ART  —  based on github.com/drumovski/bluey
+   Enhanced with: float, talk, and 4-shape mouth viseme system
+============================================================ */
+
+/* ── Stage & scaling ──
+   Character visual bounds at scale(0.7) around anchor:
+   top:  anchor - 285×0.7 = anchor - 200px  (ear tips)
+   bot:  anchor + 235×0.7 = anchor + 165px  (toes)
+   left: anchor - 192×0.7 = anchor - 135px  (tail tip)
+   right:anchor + 90×0.7  = anchor +  63px  (body right)
+   → stage 210×375px, anchor at (135, 205)
+*/
+.bluey-stage {
+  position: relative;
+  width: 210px;
+  height: 375px;
+  flex-shrink: 0;
+}
+
+.bluey-stage > .bluey {
+  position: absolute;
+  top: 205px;
+  left: 135px;
+  transform: scale(0.7);
+  transform-origin: 0 0;
+}
+
+/* ── Float (idle) ── */
+@keyframes blueyFloat {
+  0%, 100% { top: 205px; }
+  50%       { top: 195px; }
+}
+.bluey-stage > .bluey { animation: blueyFloat 3s ease-in-out infinite; }
+
+/* ── Excited body bob while talking ── */
+@keyframes blueyBob {
+  0%, 100% { top: 205px; transform: scale(0.7) rotate(0deg); }
+  25%       { top: 200px; transform: scale(0.7) rotate(-1deg); }
+  75%       { top: 208px; transform: scale(0.7) rotate(1deg); }
+}
+.bluey-stage.talking > .bluey { animation: blueyBob 0.35s ease-in-out infinite; }
+
+/* ── Mobile: scale 0.42, stage 120×220px, anchor (81,120) ── */
+@media (max-width: 640px) {
+  .bluey-stage {
+    width: 120px;
+    height: 220px;
+  }
+  .bluey-stage > .bluey {
+    top: 120px;
+    left: 81px;
+    transform: scale(0.42);
+    transform-origin: 0 0;
+  }
+  @keyframes blueyFloat {
+    0%, 100% { top: 120px; }
+    50%       { top: 112px; }
+  }
+  @keyframes blueyBob {
+    0%, 100% { top: 120px; transform: scale(0.42) rotate(0deg); }
+    25%       { top: 116px; transform: scale(0.42) rotate(-1deg); }
+    75%       { top: 123px; transform: scale(0.42) rotate(1deg); }
+  }
+}
+
+
+/* ============================================================
+   MOUTH VISEME SYSTEM
+   mouth1 = outer dark oval (grows in height to open)
+   mouth2 = pink inner oval (reveals inside of mouth)
+============================================================ */
+
+/* base transitions */
+#bluey .main-body .mouth1 {
+  clip-path: none;
+  transition: height 0.08s ease, border-radius 0.08s ease;
+}
+#bluey .main-body .mouth2 {
+  clip-path: none;
+  transition: height 0.08s ease;
+}
+
+/* mid – slightly open */
+#bluey[data-mouth="mid"] .main-body .mouth1 { height: 14px; }
+#bluey[data-mouth="mid"] .main-body .mouth2 { height: 7px; }
+
+/* open */
+#bluey[data-mouth="open"] .main-body .mouth1 { height: 22px; }
+#bluey[data-mouth="open"] .main-body .mouth2 { height: 14px; }
+
+/* wide – "aah" */
+#bluey[data-mouth="wide"] .main-body .mouth1 { height: 30px; }
+#bluey[data-mouth="wide"] .main-body .mouth2 { height: 20px; }
+
+/* closed */
+#bluey[data-mouth="closed"] .main-body .mouth1 { height: 4px; border-radius: 50%; }
+#bluey[data-mouth="closed"] .main-body .mouth2 { height: 0; }
+
+
+/* ============================================================
+   CHARACTER COLOR VARIABLES
+============================================================ */
+.bluey-stage .bluey {
+  --char-body:           #85c7f9;
+  --char-body-border:    #406b8e;
+  --char-tummy:          #d2ecfd;
+  --char-tummy-border:   #88a8bd;
+  --char-spots:          #404066;
+  --char-snout:          #eccc75;
+  --char-snout-border:   #715509;
+  --char-snout-strip:    #d6e9f7;
+  --char-eyebrow:        #d2ecfd;
+  --char-eyebrow-border: #88a8bd;
+  --char-tail-top:       white;
+}
+
+.bluey-stage.bingo-mode .bluey {
+  --char-body:           #d98a4a;
+  --char-body-border:    #8b552d;
+  --char-tummy:          #f8e8c9;
+  --char-tummy-border:   #c79b68;
+  --char-spots:          #9b5a30;
+  --char-snout:          #f8e8c9;
+  --char-snout-border:   #8b552d;
+  --char-snout-strip:    #f8e8c9;
+  --char-eyebrow:        #f6dfb8;
+  --char-eyebrow-border: #c79b68;
+  --char-tail-top:       #f8e8c9;
+}
+
+/* ============================================================
+   CHARACTER SHAPES  (original art, scoped to .bluey-stage)
+============================================================ */
+.bluey-stage .bluey .main-body {
+  background-color: var(--char-body);
+  width: 200px; height: 300px;
+  position: relative; top: -190px; left: -100px;
+  border: 3px solid var(--char-body-border);
+  border-radius: 15% 15% 15% 15% / 10% 8% 9% 12%;
+  overflow: hidden;
+}
+.bluey-stage .bluey .main-body .tummy {
+  background-color: var(--char-tummy);
+  width: 140px; height: 110px;
+  position: absolute; top: 190px; left: 50px;
+  border-radius: 42% 33% 5% 0% / 36% 55% 12% 12%;
+}
+.bluey-stage .bluey .main-body .big-spot1 {
+  background-color: var(--char-spots);
+  width: 170px; height: 170px;
+  position: absolute; top: -30px; left: -61px;
+  border-radius: 57% 43% 50% 50% / 53% 61% 39% 47%;
+}
+.bluey-stage .bluey .main-body .big-spot2 {
+  background-color: var(--char-spots);
+  width: 140px; height: 120px;
+  position: absolute; top: -18px; left: 146px;
+  border-radius: 45% 55% 50% 50% / 53% 61% 39% 47%;
+  clip-path: polygon(0 0, 100% 0, 100% 73%, 0 73%);
+}
+.bluey-stage .bluey .main-body .little-spot1 {
+  background-color: var(--char-spots);
+  width: 30px; height: 38px;
+  position: absolute; top: 158px; left: -18px;
+  border-radius: 50%;
+}
+.bluey-stage .bluey .main-body .little-spot2 {
+  background-color: var(--char-spots);
+  width: 30px; height: 50px;
+  position: absolute; top: 216px; left: -13px;
+  border-radius: 50%;
+}
+.bluey-stage .bluey .main-body .mouth1 {
+  /* outer dark oval — the mouth opening */
+  background-color: #2d1500;
+  border: 3px solid var(--char-snout-border);
+  width: 48px; height: 8px;
+  position: absolute; top: 148px; left: 76px;
+  border-radius: 0 0 48px 48px / 0 0 16px 16px;
+  z-index: 2;
+}
+.bluey-stage .bluey .main-body .mouth2 {
+  /* pink inside — revealed as mouth opens */
+  background-color: #d94f4f;
+  border: none;
+  width: 30px; height: 0px;
+  position: absolute; top: 151px; left: 85px;
+  border-radius: 0 0 30px 30px / 0 0 14px 14px;
+  z-index: 3;
+}
+.bluey-stage .bluey .main-body .eye1 {
+  background-color: white;
+  width: 61px; height: 85px;
+  position: absolute; top: 26px; left: 63px;
+  border: 3px solid black;
+  border-radius: 59% 37% 42% 51% / 49% 43% 45% 45%;
+}
+.bluey-stage .bluey .main-body .eye1 .pupil1 {
+  background-color: black;
+  width: 18px; height: 32px;
+  position: absolute; top: 25px; left: 23px;
+  border-radius: 52% 45% 42% 51% / 49% 43% 45% 45%;
+}
+.bluey-stage .bluey .main-body .eye2 {
+  background-color: white;
+  width: 48px; height: 85px;
+  position: absolute; top: 26px; left: 140px;
+  border: 3px solid black;
+  border-radius: 45% 55% 50% 51% / 49% 43% 45% 45%;
+  clip-path: polygon(0 0, 100% 0, 100% 48%, 0 48%);
+}
+.bluey-stage .bluey .main-body .eye2 .pupil2 {
+  background-color: black;
+  width: 16px; height: 35px;
+  position: absolute; top: 23px; left: 13px;
+  border-radius: 52% 45% 42% 51% / 49% 43% 45% 45%;
+}
+.bluey-stage .bluey .main-body .snout-outline1 {
+  width: 33.5px; height: 10px;
+  border-top: 3px solid var(--char-body-border);
+  position: absolute; top: 70px; left: 138px; z-index: 2;
+}
+.bluey-stage .bluey .main-body .snout-outline2 {
+  width: 16px; height: 10px;
+  border-top: 3px solid var(--char-tummy-border);
+  position: absolute; top: 70px; left: 173px; z-index: 2;
+}
+.bluey-stage .bluey .main-body .snout-blue-strip1 {
+  border-radius: 65% 1% 77% 19% / 50% 0% 72% 38%;
+  width: 150px; height: 40px;
+  position: absolute; top: 117px; left: 79px;
+  border: 6.5px solid var(--char-snout-strip); z-index: 1;
+  clip-path: polygon(76% 53%, 26% 86%, 40% 100%, 0 100%, 0 0);
+}
+.bluey-stage .bluey .main-body .snout-blue-strip2 {
+  border-radius: 19% 17% 77% 0% / 50% 11% 58% 25%;
+  width: 110px; height: 80px;
+  position: absolute; top: 31px; left: 39px;
+  border: 10px solid var(--char-snout-strip); z-index: 1;
+  transform: rotate(30deg);
+  clip-path: polygon(87% 55%, 96% 0, 100% 0, 100% 100%, 59% 100%, 80% 70%);
+}
+.bluey-stage .bluey .main-body .snout-blue-strip3 {
+  border-radius: 31% 69% 51% 49% / 30% 51% 49% 70%;
+  width: 55px; height: 55px;
+  position: absolute; top: 68px; left: 165px;
+  border: 10px solid var(--char-snout-strip); z-index: 1;
+  clip-path: polygon(0 0, 0 45%, 31% 0);
+}
+.bluey-stage .bluey .tummy-bottom {
+  background-color: var(--char-tummy);
+  width: 167px; height: 25px;
+  position: absolute; top: 93px; left: -79px;
+  border: 3px solid var(--char-tummy-border);
+  border-radius: 16% 20% 49% 48% / 40% 45% 55% 59%;
+  clip-path: polygon(72% 57%, 100% 51%, 100% 100%, 16% 100%, 15% 57%);
+}
+.bluey-stage .bluey .background-snout1 {
+  background-color: var(--char-snout);
+  width: 60px; height: 85px;
+  position: absolute; top: -110px; left: 69px;
+  border-radius: 43% 25% 27% 50% / 38% 46% 46% 41%;
+  transform: rotate(18deg);
+  border-right: 3px solid var(--char-snout-border);
+  border-bottom: 3px solid var(--char-snout-border);
+}
+.bluey-stage .bluey .background-snout2 {
+  background-color: var(--char-snout);
+  width: 139px; height: 95px;
+  position: absolute; top: -117px; left: -21px;
+  border-radius: 0% 14% 13% 24% / 54% 24% 23% 37%;
+  border-bottom: 3px solid var(--char-snout-border);
+  clip-path: polygon(1% 100%, 1% 83%, 4% 68%, 42% 55%, 69% 21%, 78% 0, 93% 0, 100% 67%, 86% 84%, 100% 100%);
+}
+.bluey-stage .bluey .nose-left {
+  background-color: #2a2b3f;
+  border-radius: 29% 69% 69% 29% / 33% 48% 47% 32%;
+  width: 20px; height: 55px;
+  position: absolute; top: -122px; left: 100px;
+  transform: rotate(-35deg);
+  border-left: 3px solid #0e0302;
+}
+.bluey-stage .bluey .nose-top {
+  background-color: #2a2b3f;
+  border-radius: 29% 69% 69% 29% / 33% 48% 47% 32%;
+  width: 19px; height: 55px;
+  position: absolute; top: -136px; left: 108px;
+  transform: rotate(90deg);
+  border-left: 3px solid #0e0302;
+}
+.bluey-stage .bluey .nose-right {
+  background-color: #2a2b3f;
+  border-radius: 29% 69% 69% 29% / 33% 48% 47% 32%;
+  width: 25px; height: 51px;
+  position: absolute; top: -120px; left: 113px;
+  transform: rotate(-152deg);
+  border-left: 3px solid #0e0302;
+}
+.bluey-stage .bluey .nose-shine {
+  background-color: #92929e;
+  width: 27px; height: 10px;
+  position: absolute; z-index: 3; top: -115px; left: 115px;
+  border-radius: 35% 35% 37% 34% / 38% 37% 45% 43%;
+}
+.bluey-stage .bluey .ear1-left {
+  width: 140px; height: 20px; background-color: var(--char-spots);
+  top: -235px; left: -119px; position: absolute;
+  border-radius: 13% 11% 82% 12% / 33% 15% 82% 0%;
+  border-top: 3px solid black; transform: rotate(-52deg); z-index: -1;
+}
+.bluey-stage .bluey .ear1-right {
+  width: 20px; height: 120px; background-color: var(--char-spots);
+  top: -285px; left: -32px; position: absolute;
+  border-radius: 93% 7% 25% 40% / 84% 7% 60% 0%;
+  border: 3px solid black; transform: rotate(-2deg); z-index: -2;
+}
+.bluey-stage .bluey .ear1-inner {
+  width: 100px; height: 100px; background-color: var(--char-snout);
+  top: -245px; left: -52px; position: absolute;
+  border-radius: 10% 0% 0% 0% / 94% 0% 0% 0%;
+  transform: rotate(36deg); z-index: -1;
+  clip-path: polygon(0 17%, 7% 15%, 67% 100%, 0% 100%);
+}
+.bluey-stage .bluey .ear2-left {
+  width: 140px; height: 20px; background-color: var(--char-spots);
+  top: -235px; left: -12px; position: absolute;
+  border-radius: 13% 11% 82% 12% / 33% 15% 82% 0%;
+  border-top: 3px solid black; transform: rotate(-52deg); z-index: -1;
+}
+.bluey-stage .bluey .ear2-right {
+  width: 20px; height: 120px; background-color: var(--char-spots);
+  top: -285px; left: 75px; position: absolute;
+  border-radius: 93% 7% 25% 40% / 84% 7% 60% 0%;
+  border: 3px solid black; transform: rotate(-2deg); z-index: -2;
+}
+.bluey-stage .bluey .ear2-inner {
+  width: 100px; height: 100px; background-color: var(--char-snout);
+  top: -245px; left: 55px; position: absolute;
+  border-radius: 10% 0% 0% 0% / 94% 0% 0% 0%;
+  transform: rotate(36deg); z-index: -1;
+  clip-path: polygon(0 17%, 7% 15%, 67% 100%, 0% 100%);
+}
+.bluey-stage .bluey .eyebrows {
+  animation: pump 6s ease-in-out 2s infinite;
+  position: absolute; top: 0; left: 0; z-index: 1;
+}
+.bluey-stage .bluey .eyebrows .eyebrow-l1 {
+  background-color: var(--char-eyebrow); width: 45px; height: 23px;
+  position: absolute; top: -203px; left: -35px;
+  border: 3px solid var(--char-eyebrow-border);
+  border-radius: 52% 47% 27% 26% / 61% 62% 35% 34%;
+  transform: rotate(-30deg);
+}
+.bluey-stage .bluey .eyebrows .eyebrow-l2 {
+  background-color: var(--char-eyebrow); width: 45px; height: 23px;
+  position: absolute; top: -209px; left: -22px;
+  border: 3px solid var(--char-eyebrow-border);
+  border-radius: 52% 47% 27% 26% / 61% 62% 35% 34%;
+  transform: rotate(-10deg);
+}
+.bluey-stage .bluey .eyebrows .eyebrow-l-inner {
+  background-color: var(--char-eyebrow); width: 43px; height: 23px;
+  position: absolute; top: -202px; left: -28px;
+  border-radius: 52% 47% 27% 26% / 61% 62% 35% 34%;
+  transform: rotate(-25deg);
+}
+.bluey-stage .bluey .eyebrows .eyebrow-r1 {
+  background-color: var(--char-eyebrow); width: 45px; height: 23px;
+  position: absolute; top: -203px; left: 61px;
+  border: 3px solid var(--char-eyebrow-border);
+  border-radius: 52% 47% 27% 26% / 61% 62% 35% 34%;
+  transform: rotate(30deg);
+}
+.bluey-stage .bluey .eyebrows .eyebrow-r2 {
+  background-color: var(--char-eyebrow); width: 45px; height: 23px;
+  position: absolute; top: -209px; left: 49px;
+  border: 3px solid var(--char-eyebrow-border);
+  border-radius: 52% 47% 27% 26% / 61% 62% 35% 34%;
+  transform: rotate(13deg);
+}
+.bluey-stage .bluey .eyebrows .eyebrow-r-inner {
+  background-color: var(--char-eyebrow); width: 43px; height: 23px;
+  position: absolute; top: -202px; left: 62px;
+  border-radius: 52% 47% 27% 26% / 61% 62% 35% 34%;
+  transform: rotate(25deg);
+}
+@keyframes pump {
+  0%  { top: 0; } 4% { top: 0; } 6% { top: -5px; } 8% { top: 0; }
+}
+/* ── Arm group (enables rotation as a unit) ── */
+.bluey-stage .bluey .arm-group {
+  position: absolute;
+  top: -5px; left: -82px;
+  width: 40px; height: 140px;
+  transform-origin: 50% 0%;   /* shoulder pivot */
+}
+.bluey-stage .bluey .arm-group .arm {
+  background-color: var(--char-body); width: 32px; height: 83px;
+  position: absolute; top: 0; left: 0;
+  border-left: 3px solid var(--char-body-border); border-right: 3px solid var(--char-body-border);
+}
+.bluey-stage .bluey .arm-group .armband {
+  background-color: var(--char-body); width: 32px; height: 20px;
+  position: absolute; top: 63px; left: 3px;
+  border-radius: 50% 43% 53% 47% / 78% 75% 8% 10%; z-index: 1;
+}
+.bluey-stage .bluey .arm-group .hand {
+  background-color: var(--char-tummy); width: 32px; height: 50px;
+  position: absolute; top: 80px; left: 0;
+  border-left: 3px solid var(--char-tummy-border); border-right: 3px solid var(--char-tummy-border);
+}
+.bluey-stage .bluey .arm-group .finger1 {
+  width: 20px; height: 40px; background-color: var(--char-tummy);
+  position: absolute; top: 97px; left: 17px;
+  border-right: 3px solid var(--char-tummy-border); border-bottom: 3px solid var(--char-tummy-border);
+  transform: rotate(-5deg); border-radius: 0% 0% 53% 47% / 0% 0% 25% 25%;
+}
+.bluey-stage .bluey .arm-group .finger2 {
+  width: 15px; height: 22px; background-color: var(--char-tummy);
+  position: absolute; top: 119px; left: 8px;
+  border-right: 3px solid var(--char-tummy-border); border-bottom: 3px solid var(--char-tummy-border);
+  transform: rotate(50deg); border-radius: 51% 49% 53% 47% / 56% 57% 43% 44%;
+}
+.bluey-stage .bluey .arm-group .finger3 {
+  width: 15px; height: 19px; background-color: var(--char-tummy);
+  position: absolute; top: 113px; left: -4px;
+  border-right: 3px solid var(--char-tummy-border); border-bottom: 3px solid var(--char-tummy-border);
+  transform: rotate(65deg); border-radius: 51% 49% 53% 47% / 56% 57% 43% 44%;
+}
+.bluey-stage .bluey .arm-group .finger4 {
+  width: 10px; height: 10px; background-color: var(--char-tummy);
+  position: absolute; top: 108px; left: -3px;
+  border-left: 3px solid var(--char-tummy-border); border-radius: 51% 49% 53% 47% / 56% 57% 43% 44%;
+}
+
+/* ── Wave on tap ── */
+@keyframes blueyWave {
+  0%   { transform: rotate(0deg); }
+  18%  { transform: rotate(-55deg); }
+  36%  { transform: rotate(-10deg); }
+  54%  { transform: rotate(-55deg); }
+  72%  { transform: rotate(-10deg); }
+  88%  { transform: rotate(-30deg); }
+  100% { transform: rotate(0deg); }
+}
+.bluey-stage.waving .arm-group {
+  animation: blueyWave 0.85s ease-in-out;
+}
+
+/* ── Excited jump on navigate ── */
+@keyframes blueyJump {
+  0%   { top: 205px; transform: scale(0.7); }
+  28%  { top: 155px; transform: scale(0.7) scaleY(1.04); }
+  52%  { top: 160px; transform: scale(0.7); }
+  72%  { top: 210px; transform: scale(0.7) scaleY(0.94); }
+  88%  { top: 203px; transform: scale(0.7); }
+  100% { top: 205px; transform: scale(0.7); }
+}
+@keyframes blueyJumpMobile {
+  0%   { top: 120px; transform: scale(0.42); }
+  28%  { top: 82px;  transform: scale(0.42) scaleY(1.04); }
+  52%  { top: 88px;  transform: scale(0.42); }
+  72%  { top: 126px; transform: scale(0.42) scaleY(0.94); }
+  88%  { top: 118px; transform: scale(0.42); }
+  100% { top: 120px; transform: scale(0.42); }
+}
+@keyframes bingoJumpMobile {
+  0%   { top: 120px; transform: scale(0.42); }
+  28%  { top: 82px;  transform: scale(0.42) scaleY(1.04); }
+  52%  { top: 88px;  transform: scale(0.42); }
+  72%  { top: 126px; transform: scale(0.42) scaleY(0.94); }
+  88%  { top: 118px; transform: scale(0.42); }
+  100% { top: 120px; transform: scale(0.42); }
+}
+.bluey-stage.jumping > .bluey {
+  animation: blueyJump 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+}
+@media (max-width: 640px) {
+  .bluey-stage.jumping > .bluey {
+    animation: blueyJumpMobile 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+  }
+}
+.bluey-stage .bluey .leg-l1 {
+  background-color: var(--char-body); width: 45px; height: 70px;
+  position: absolute; top: 108px; left: -65px;
+  border-left: 3px solid var(--char-body-border); border-right: 3px solid var(--char-body-border); z-index: -1;
+}
+.bluey-stage .bluey .legband1 {
+  background-color: var(--char-body); width: 45px; height: 10px;
+  position: absolute; top: 169px; left: -62px;
+  border-radius: 50% 43% 53% 47% / 78% 75% 8% 10%; z-index: 1;
+}
+.bluey-stage .bluey .leg-l2 {
+  background-color: var(--char-tummy); width: 45px; height: 51px;
+  position: absolute; top: 178px; left: -65px;
+  border-left: 3px solid var(--char-tummy-border); border-right: 3px solid var(--char-tummy-border);
+}
+.bluey-stage .bluey .footl {
+  background-color: var(--char-tummy); width: 61px; height: 31px;
+  position: absolute; top: 198px; left: -65px;
+  border: 3px solid var(--char-tummy-border);
+  border-radius: 0% 34% 53% 47% / 0% 56% 17% 21%;
+  clip-path: polygon(27% 18%, 72% 18%, 72% 0, 100% 0, 100% 64%, 100% 100%, 0 100%, 0 18%);
+}
+.bluey-stage .bluey .toe-l1 {
+  background-color: var(--char-tummy); width: 25px; height: 19px;
+  position: absolute; top: 210px; left: -62px;
+  border-right: 3px solid var(--char-tummy-border); border-bottom: 3px solid var(--char-tummy-border); border-top: 3px solid var(--char-tummy-border);
+  transform: rotate(7deg); border-radius: 0% 40% 53% 47% / 0% 80% 17% 21%;
+  clip-path: polygon(27% 18%, 62% 18%, 62% 0, 100% 0, 100% 64%, 100% 100%, 0 100%, 0 18%);
+}
+.bluey-stage .bluey .toe-l2 {
+  background-color: var(--char-tummy); width: 15px; height: 19px;
+  position: absolute; top: 210px; left: -32px;
+  border-right: 3px solid var(--char-tummy-border); border-top: 3px solid var(--char-tummy-border);
+  transform: rotate(-4deg); border-radius: 0% 39% 59% 21% / 0% 76% 12% 0%;
+  clip-path: polygon(27% 18%, 62% 18%, 62% 0, 100% 0, 100% 64%, 100% 100%, 0 100%, 0 18%);
+}
+.bluey-stage .bluey .leg-r1 {
+  background-color: var(--char-body); width: 45px; height: 70px;
+  position: absolute; top: 108px; left: 25px;
+  border-left: 3px solid var(--char-body-border); border-right: 3px solid var(--char-body-border); z-index: -1;
+}
+.bluey-stage .bluey .legband2 {
+  background-color: var(--char-body); width: 45px; height: 10px;
+  position: absolute; top: 169px; left: 28px;
+  border-radius: 50% 43% 53% 47% / 78% 75% 8% 10%; z-index: 1;
+}
+.bluey-stage .bluey .leg-r2 {
+  background-color: var(--char-tummy); width: 45px; height: 51px;
+  position: absolute; top: 178px; left: 25px;
+  border-left: 3px solid var(--char-tummy-border); border-right: 3px solid var(--char-tummy-border);
+}
+.bluey-stage .bluey .footr {
+  background-color: var(--char-tummy); width: 61px; height: 31px;
+  position: absolute; top: 198px; left: 25px;
+  border: 3px solid var(--char-tummy-border);
+  border-radius: 0% 34% 53% 47% / 0% 56% 17% 21%;
+  clip-path: polygon(27% 18%, 72% 18%, 72% 0, 100% 0, 100% 64%, 100% 100%, 0 100%, 0 18%);
+}
+.bluey-stage .bluey .toe-r1 {
+  background-color: var(--char-tummy); width: 25px; height: 19px;
+  position: absolute; top: 210px; left: 29px;
+  border-right: 3px solid var(--char-tummy-border); border-bottom: 3px solid var(--char-tummy-border); border-top: 3px solid var(--char-tummy-border);
+  transform: rotate(7deg); border-radius: 0% 40% 53% 47% / 0% 80% 17% 21%;
+  clip-path: polygon(27% 18%, 62% 18%, 62% 0, 100% 0, 100% 64%, 100% 100%, 0 100%, 0 18%);
+}
+.bluey-stage .bluey .toe-r2 {
+  background-color: var(--char-tummy); width: 15px; height: 19px;
+  position: absolute; top: 210px; left: 57px;
+  border-right: 3px solid var(--char-tummy-border); border-top: 3px solid var(--char-tummy-border);
+  transform: rotate(-4deg); border-radius: 0% 39% 59% 21% / 0% 76% 12% 0%;
+  clip-path: polygon(27% 18%, 62% 18%, 62% 0, 100% 0, 100% 64%, 100% 100%, 0 100%, 0 18%);
+}
+.bluey-stage .bluey .tail {
+  position: absolute; top: 100px; left: -50px;
+  animation: wag .4s ease-in-out infinite; z-index: -1;
+}
+.bluey-stage .bluey .tail .tail-bottom1 {
+  background-color: var(--char-body); width: 110px; height: 65px;
+  position: absolute; top: -7px; left: -131px;
+  border: 3px solid var(--char-body-border); z-index: -1;
+  border-radius: 41% 20% 50% 50% / 0% 0% 35% 32%;
+  transform: rotate(-31deg);
+}
+.bluey-stage .bluey .tail .tail-top1 {
+  background-color: var(--char-tail-top); width: 120px; height: 65px;
+  position: absolute; top: -50px; left: -151px;
+  border-bottom: 3px solid var(--char-body-border); z-index: -1;
+  border-radius: 41% 20% 50% 50% / 0% 0% 35% 32%;
+  transform: rotate(-15deg);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 18% 100%);
+}
+.bluey-stage .bluey .tail .tail-band {
+  background-color: var(--char-body); width: 30px; height: 51px;
+  position: absolute; top: 19px; left: -105px;
+  border-radius: 50% 50% 50% 49% / 50% 9% 11% 50%;
+  z-index: 1; transform: rotate(-12deg);
+}
+.bluey-stage .bluey .tail .tail-end1 {
+  background-color: var(--char-spots); width: 60px; height: 40px;
+  position: absolute; top: 17px; left: -162px;
+  border-top: 3px solid black; border-left: 3px solid black;
+  border-radius: 24% 0% 17% 25% / 39% 0% 35% 37%;
+}
+.bluey-stage .bluey .tail .tail-end2 {
+  background-color: var(--char-spots); width: 70px; height: 40px;
+  position: absolute; top: 40px; left: -158px;
+  border-bottom: 3px solid black; border-left: 3px solid black;
+  border-radius: 31% 33% 50% 49% / 41% 34% 13% 42%;
+  transform: rotate(-14deg);
+}
+.bluey-stage .bluey .tail .tail-end-middle {
+  background-color: var(--char-spots); width: 40px; height: 40px;
+  position: absolute; top: 29px; left: -177px;
+  border-radius: 50%; z-index: 1;
+}
+.bluey-stage .bluey .tail .tail-fluff1 {
+  background-color: var(--char-spots); width: 50px; height: 35px;
+  position: absolute; top: 38px; left: -185px;
+  border-left: 3px solid black; border-bottom: 3px solid black;
+  border-radius: 56% 17% 8% 53% / 47% 41% 37% 50%;
+  transform: rotate(10deg); z-index: -1;
+}
+.bluey-stage .bluey .tail .tail-fluff2 {
+  background-color: var(--char-spots); width: 35px; height: 20px;
+  position: absolute; top: 26px; left: -192px;
+  border: 3px solid black;
+  border-radius: 42% 33% 0% 46% / 30% 41% 37% 68%;
+}
+@keyframes wag {
+  50% { transform: rotateY(45deg) rotateZ(10deg); }
+}
+.bluey-stage .bluey .body-outline {
+  width: 200px; height: 300px;
+  position: absolute; top: -190px; left: -100px;
+  border-left: 3px solid black; border-top: 3px solid black; border-right: 3px solid black;
+  border-radius: 15% 15% 15% 15% / 10% 8% 9% 12%;
+  z-index: 1;
+  clip-path: polygon(35% 0, 11% 23%, 100% 7%, 100% 24%, 79% 24%, 46% 88%, 0 88.5%, 0 72.5%, 30% 67%, 0 65.5%, 0 53.5%, 32% 54%, 0 45.5%, 0% 0%);
+}
+
+
+/* ============================================================
+   BINGO MODE — same shapes, color vars overridden above, smaller scale
+============================================================ */
+@keyframes bingoFloat {
+  0%, 100% { top: 205px; }
+  50%       { top: 196px; }
+}
+@keyframes bingoBob {
+  0%, 100% { top: 205px; transform: scale(0.7) rotate(0deg); }
+  25%       { top: 200px; transform: scale(0.7) rotate(-1deg); }
+  75%       { top: 208px; transform: scale(0.7) rotate(1deg); }
+}
+@keyframes bingoJump {
+  0%   { top: 205px; transform: scale(0.7); }
+  28%  { top: 168px; transform: scale(0.7) scaleY(1.04); }
+  52%  { top: 173px; transform: scale(0.7); }
+  72%  { top: 210px; transform: scale(0.7) scaleY(0.94); }
+  88%  { top: 203px; transform: scale(0.7); }
+  100% { top: 205px; transform: scale(0.7); }
+}
+.bluey-stage.bingo-mode > .bluey {
+  transform: scale(0.7);
+  animation: bingoFloat 3s ease-in-out infinite;
+}
+.bluey-stage.bingo-mode.talking > .bluey {
+  animation: bingoBob 0.35s ease-in-out infinite;
+}
+.bluey-stage.bingo-mode.jumping > .bluey {
+  animation: bingoJump 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+}
+@media (max-width: 640px) {
+  @keyframes bingoFloat {
+    0%, 100% { top: 120px; }
+    50%       { top: 112px; }
+  }
+  @keyframes bingoBob {
+    0%, 100% { top: 120px; transform: scale(0.42) rotate(0deg); }
+    25%       { top: 116px; transform: scale(0.42) rotate(-1deg); }
+    75%       { top: 123px; transform: scale(0.42) rotate(1deg); }
+  }
+  .bluey-stage.bingo-mode.jumping > .bluey {
+    animation: bingoJumpMobile 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+  }
+  .bluey-stage.bingo-mode > .bluey {
+    top: 120px;
+    left: 81px;
+    transform: scale(0.42);
+    animation: bingoFloat 3s ease-in-out infinite;
+  }
+}
