@@ -165,9 +165,22 @@ function buildSystemPrompt(minutes) {
 
 The request may be written in English or in Persian. Either way, always write the story in Persian.
 
-Rules:
-- Reply with ONLY the story text in Persian script. No title, no transliteration, no English, no markdown, no quotation marks around the whole story.
-- About ${words} words — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
+Reply with ONLY a JSON object, nothing else, no markdown fences:
+{"scenes": [{"text": "...", "image": "..."}, ...]}
+
+The story is broken into scenes so a picture can be shown for each one while it plays:
+- Split the story into 3 to 6 scenes, at natural story-beat boundaries (a scene ends when
+  the setting, action, or moment changes) — never mid-sentence. Roughly equal in length.
+- "text": that scene's narration, in Persian script. No title, no transliteration, no
+  English, no markdown, no quotation marks. Concatenated in order, the scenes' "text"
+  fields are the whole story.
+- "image": a short English description (10-20 words) of that scene's setting and action,
+  for a children's-book illustration — concrete and visual (who/what, where, doing what),
+  never a character's name or a copyrighted title, since the artist has never seen the
+  story and only has this line to go on.
+
+Rules for the story itself:
+- About ${words} words total across all scenes — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
 - Very simple Farsi words a 3-year-old knows, in short sentences.
 - One or two main characters, named, with a small, easy-to-follow problem or adventure for them — something they actually have to work at or figure out, not something that just happens to them.
 - Keep the story focused on one main idea. Every event should follow from a *reason* given earlier in the story — not from convenience. Don't introduce a new creature, object, or character partway through unless the story already gave a reason it would be there; a stray animal wandering in to make a sound is exactly the kind of random detail to avoid.
@@ -176,7 +189,7 @@ Rules:
 - Warm and gentle throughout. Never scary, sad, violent, or sarcastic. A satisfying, happy ending.
 - Don't moralise, and don't let a lesson feel forced — if the story is teaching something, it should come through what happens, never through being told.
 - Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
-- The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in Persian. Don't overuse them — most sentences need none.`;
+- The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them across the whole story, right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in Persian, and they belong in "text", never in "image". Don't overuse them — most sentences need none.`;
 }
 
 /**
@@ -252,11 +265,41 @@ async function handleStory(req, res) {
     return sendJson(res, upstream.status, { error: detail });
   }
 
-  const data  = await upstream.json();
-  const story = data.choices?.[0]?.message?.content?.trim();
-  if (!story) return sendJson(res, 502, { error: 'No story came back. Try again.' });
+  const data = await upstream.json();
+  const raw  = data.choices?.[0]?.message?.content?.trim() || '';
+  const jsonText = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
 
-  sendJson(res, 200, { story });
+  let scenes;
+  try {
+    scenes = JSON.parse(jsonText).scenes;
+  } catch {
+    scenes = null;
+  }
+  if (!Array.isArray(scenes) || scenes.length === 0 || !scenes.every(s => s?.text)) {
+    return sendJson(res, 502, { error: 'No story came back. Try again.' });
+  }
+
+  // One illustration per scene, all in parallel — this is what makes the
+  // story watchable, not just listenable, but it's also the slow part: it
+  // can take as long as the story text itself. It runs after the text comes
+  // back (a scene needs its "image" line first) rather than blocking on it.
+  // A scene whose picture fails to generate still gets to play — it just
+  // plays without one, rather than losing the whole story over one image.
+  const images = await Promise.all(scenes.map(async s => {
+    if (!s.image) return null;
+    try {
+      return await generateSceneImage(s.image);
+    } catch {
+      return null;
+    }
+  }));
+
+  sendJson(res, 200, {
+    scenes: scenes.map((s, i) => ({
+      text:  s.text,
+      image: images[i] ? `data:image/png;base64,${images[i]}` : null,
+    })),
+  });
 }
 
 /**
@@ -330,6 +373,35 @@ async function generateCardImage(wordEn) {
   const data = await upstream.json();
   const b64  = data.data?.[0]?.b64_json;
   if (!b64) throw new Error('No image came back. Try a different word.');
+  return b64;
+}
+
+/** One illustration per story scene — a whole moment, not a single centered
+ *  subject, so the prompt asks for a scene rather than reusing the flashcard
+ *  framing. Each call is independent, so a character's exact look can drift
+ *  a little between scenes; the shared style keeps that from looking jarring. */
+async function generateSceneImage(sceneEn) {
+  const prompt =
+    `${sceneEn}, flat vector illustration for a children's picture book, warm and ` +
+    `cheerful, simple bold shapes, soft shading, gentle pastel background, no text, ` +
+    `no watermark, no border`;
+
+  const upstream = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OPENAI_IMAGE_MODEL,
+      prompt,
+      size: '1024x1024',
+      quality: 'low',
+      n: 1,
+    }),
+  }, 45000);
+  if (!upstream.ok) throw new Error(await openaiErrorMessage(upstream));
+
+  const data = await upstream.json();
+  const b64  = data.data?.[0]?.b64_json;
+  if (!b64) throw new Error('No image came back.');
   return b64;
 }
 

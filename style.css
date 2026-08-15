@@ -822,6 +822,22 @@ body[data-mode="play"]  #panel-play { display: flex; }
   color: var(--ink);
 }
 
+/* One picture per scene, swapped in step with the narration — a soft
+   crossfade (toggled in JS via .is-changing) instead of a hard cut. */
+.story-scene {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  margin-bottom: 14px;
+  background: var(--sand);
+  transition: opacity 0.25s ease;
+}
+.story-scene.is-changing { opacity: 0; }
+/* Author display rules beat the UA [hidden] one at equal specificity. */
+.story-scene[hidden] { display: none; }
+
 /* While the first chunk is being synthesised there is nothing to hear and the
    mouth is correctly still. Say so, so the wait doesn't look like a fault. */
 .preparing-note {

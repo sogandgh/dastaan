@@ -1,6 +1,6 @@
 import {
   synthesize, prefetch, listVoices, clearCache, getVoice, setVoice,
-  getStory, listStories, deleteStory,
+  getStory, listStories, deleteStory, normalizeScenes,
   createCollection, deleteCollection, getVocabulary,
   generateCard, saveCard, listCards, deleteCard,
 } from './tts.js';
@@ -253,16 +253,22 @@ function splitForNarration(text, firstMax = 150, restMax = 240) {
   return chunks;
 }
 
-async function speakStory(text) {
+/**
+ * `scenes` is `[{ text, image }]` from getStory() — one narration chunk per
+ * scene, each with its own picture (or `image: null` for an older cached
+ * story, or a scene whose picture failed to generate). Each scene's text is
+ * synthesised as its own clip, and its picture is shown the moment that clip
+ * starts — the slideshow is just "whatever scene is currently playing."
+ */
+async function speakStory(scenes) {
   const token = beginSpeaking();
   const voiceId = await resolveVoice();
   if (!voiceId) { openSettings(); return 'no-voice'; }
 
-  const chunks = splitForNarration(text);
   const LOOKAHEAD = 2;
-  const pending = new Array(chunks.length).fill(null);
+  const pending = new Array(scenes.length).fill(null);
   const start = i => {
-    if (i < chunks.length && !pending[i]) pending[i] = synthesize(chunks[i], voiceId);
+    if (i < scenes.length && !pending[i]) pending[i] = synthesize(scenes[i].text, voiceId);
   };
   for (let i = 0; i <= LOOKAHEAD; i++) start(i);
 
@@ -271,16 +277,17 @@ async function speakStory(text) {
     if (token !== speakToken) return 'stopped';
 
     // Let the second chunk get a head start so the first seam doesn't gap.
-    if (chunks.length > 1) {
+    if (scenes.length > 1) {
       await Promise.race([pending[1], new Promise(r => setTimeout(r, 2000))]);
       if (token !== speakToken) return 'stopped';
     }
 
-    for (let i = 0; i < chunks.length; i++) {
+    for (let i = 0; i < scenes.length; i++) {
       const url = i === 0 ? first : await pending[i];
       if (token !== speakToken) return 'stopped';
       start(i + LOOKAHEAD);
 
+      showScene(scenes[i]);
       const outcome = await playClip(url, token);
       if (token !== speakToken) return 'stopped';
       if (outcome === 'blocked') {
@@ -488,8 +495,9 @@ const lengthsEl   = document.getElementById('lengths');
 const promptEl    = document.getElementById('story-prompt');
 const startBtn    = document.getElementById('start-btn');
 const setupNote   = document.getElementById('setup-note');
-const playThemeEl = document.getElementById('playing-theme');
-const storyTextEl = document.getElementById('story-text');
+const playThemeEl  = document.getElementById('playing-theme');
+const storyTextEl  = document.getElementById('story-text');
+const storySceneEl = document.getElementById('story-scene');
 
 function renderThemes() {
   themesEl.innerHTML = '';
@@ -530,12 +538,15 @@ async function startStory() {
   }
 
   setupNote.classList.remove('error');
-  setupNote.textContent = 'Writing the story…';
+  // A fresh story now also draws a picture for each scene, which takes
+  // longer than the text alone — say so, so the wait reads as expected
+  // rather than stuck. A replayed (cached) story skips all of this.
+  setupNote.textContent = 'Writing the story and drawing the pictures…';
   startBtn.disabled = true;
 
-  let story;
+  let scenes;
   try {
-    ({ story } = await getStory({
+    ({ scenes } = await getStory({
       prompt:  custom,
       focus:   selectedTheme?.focus || '',
       minutes: selectedMinutes,
@@ -551,24 +562,59 @@ async function startStory() {
   setupNote.textContent = '';
   startBtn.disabled = false;
   renderHistory();
-  await playStory(story, selectedTheme?.label || custom || 'A story for you');
+  await playStory(scenes, selectedTheme?.label || custom || 'A story for you');
 }
 
-/** Shared by a fresh story and by replaying one from the history. */
 /** Delivery tags like [giggles] are for the voice, not the reader — the
  *  parent following along on screen shouldn't see stage directions. */
 function stripDeliveryTags(text) {
   return text.replace(/\[[^\]]*\]/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
-async function playStory(story, label) {
+/** Stories from before scenes/pictures existed come back from getStory() as
+ *  one giant scene with no image. Left whole, that would be one very long
+ *  single TTS clip with a long wait and no pacing — so anything oversized
+ *  still gets split for narration, it just won't have pictures to show. */
+function expandLongScenes(scenes) {
+  const MAX = 260;
+  const out = [];
+  for (const scene of scenes) {
+    if (scene.text.length <= MAX) { out.push(scene); continue; }
+    splitForNarration(scene.text, MAX, MAX).forEach((text, i) => {
+      out.push({ text, image: i === 0 ? scene.image : null });
+    });
+  }
+  return out;
+}
+
+/** Shows the scene currently narrating: its picture, if it has one, and its
+ *  text (stage-direction tags stripped, same as before). This *is* the
+ *  slideshow — there's no separate timer, it just tracks playback. */
+function showScene(scene) {
+  storyTextEl.textContent = stripDeliveryTags(scene.text);
+  if (!scene.image) { storySceneEl.hidden = true; return; }
+
+  storySceneEl.classList.add('is-changing');
+  // Swap the src while faded out so the crossfade covers the change itself,
+  // not just the fade — a plain src swap has no transition of its own.
+  setTimeout(() => {
+    storySceneEl.src = scene.image;
+    storySceneEl.hidden = false;
+    requestAnimationFrame(() => storySceneEl.classList.remove('is-changing'));
+  }, 200);
+}
+
+/** Shared by a fresh story and by replaying one from the history. */
+async function playStory(rawScenes, label) {
+  const scenes = expandLongScenes(rawScenes);
   playThemeEl.textContent = label;
-  storyTextEl.textContent = stripDeliveryTags(story);
+  storyTextEl.textContent = '';
+  storySceneEl.hidden = true;
   setMode('play');
   // The first chunk takes a few seconds to synthesise. Say so, otherwise a
   // motionless Bluey reads as broken rather than as getting ready.
   document.body.classList.add('preparing');
-  const outcome = await speakStory(story);
+  const outcome = await speakStory(scenes);
   document.body.classList.remove('preparing');
   if (outcome !== 'stopped') setMode('setup');
 }
@@ -592,7 +638,7 @@ async function renderHistory() {
     play.innerHTML =
       `<span class="history-label" dir="auto">${escapeHtml(rec.label)}</span>
        <span class="history-meta">${rec.minutes} min${rec.minutes > 1 ? 's' : ''}</span>`;
-    play.onclick = () => playStory(rec.story, rec.label);
+    play.onclick = () => playStory(normalizeScenes(rec), rec.label);
 
     const del = document.createElement('button');
     del.className = 'history-del';

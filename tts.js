@@ -170,9 +170,7 @@ export async function getStory({ prompt = '', focus = '', minutes = 1, label = '
 
   const cached = await idbGet(STORIES, key);
   if (cached) {
-    // Older builds stored the bare text; keep those readable.
-    const story = typeof cached === 'string' ? cached : cached.story;
-    return { story, fromCache: true };
+    return { scenes: normalizeScenes(cached), fromCache: true };
   }
 
   const res = await fetch('/api/story', {
@@ -182,14 +180,27 @@ export async function getStory({ prompt = '', focus = '', minutes = 1, label = '
   });
   if (!res.ok) throw new Error(await describeError(res));
 
-  const { story } = await res.json();
+  const { scenes } = await res.json();
   await idbSet(STORIES, key, {
-    story,
+    scenes,
     label: label || prompt.trim() || 'A story',
     minutes,
     savedAt: Date.now(),
   });
-  return { story, fromCache: false };
+  return { scenes: normalizeScenes({ scenes }), fromCache: false };
+}
+
+/**
+ * Every story from before this feature has `{ story: "..." }` — one flat
+ * string, no pictures — instead of `{ scenes: [...] }`. Both shapes end up
+ * looking the same to callers: a list of `{ text, image }` scenes, `image`
+ * just null for the old ones (so playback still works, minus the slideshow).
+ */
+export function normalizeScenes(rec) {
+  if (typeof rec === 'string') return [{ text: rec, image: null }];
+  if (Array.isArray(rec?.scenes)) return rec.scenes;
+  if (rec?.story) return [{ text: rec.story, image: null }];
+  return [];
 }
 
 /**
@@ -223,17 +234,18 @@ export async function listStories() {
         const rec = typeof r === 'string' ? { story: r, minutes: 1, savedAt: 0 } : r;
         return { ...rec, _key: keys[i] };
       })
-      .filter(r => r && r.story)
+      .filter(r => r && (r.story || r.scenes?.length))
       // Records saved before labels existed still deserve a name: use the
       // story's opening words rather than calling everything "A story".
-      .map(r => ({ ...r, label: r.label || openingWords(r.story) }))
+      .map(r => ({ ...r, label: r.label || openingWords(normalizeScenes(r)) }))
       .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
   } catch {
     return [];
   }
 }
 
-function openingWords(story) {
+function openingWords(scenes) {
+  const story = scenes.map(s => s.text).join(' ');
   const words = story.trim().split(/\s+/).slice(0, 5).join(' ');
   return words.length < story.trim().length ? `${words}…` : words;
 }
