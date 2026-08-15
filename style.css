@@ -374,6 +374,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   padding-right: 10px;
 }
 .deck-tab-del {
+  position: relative;
   display: grid;
   place-items: center;
   width: 16px;
@@ -383,6 +384,14 @@ body[data-mode="play"]  #panel-play { display: flex; }
   line-height: 1;
   opacity: 0.55;
   transition: opacity 150ms, background 150ms;
+}
+/* A 16px dot is too small to tap reliably next to the label it shares a
+   button with — this quietly extends the real tap area to ~44px without
+   changing how big the × looks, so a thumb hits it and not the tab label. */
+.deck-tab-del::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
 }
 .deck-tab-del:hover { opacity: 1; background: rgba(255, 255, 255, 0.35); }
 .deck-tab.is-active .deck-tab-del { color: #fff; }
