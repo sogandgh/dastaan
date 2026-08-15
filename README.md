@@ -19,7 +19,7 @@ short Farsi story built around it while your kid just watches him, no reading re
 
 ![Learn screen](docs/screenshot-learn.png)
 
-![Adding a word — Bluey translates it, illustrates it, and asks for confirmation before saving](docs/screenshot-add-word.png)
+![Voice settings screen](docs/screenshot-voice.png)
 
 ![Story setup screen](docs/screenshot-story-setup.png)
 
