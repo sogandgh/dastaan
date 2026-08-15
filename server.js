@@ -192,11 +192,11 @@ Every scene is illustrated by a separate artist working alone, with no memory of
 other scenes and no picture of the story's characters — "characters" and each scene's
 "image" line are the only things any of them ever sees, so those have to carry
 everything needed for the character to look like the same person or animal every time:
-- "characters": one line, fixed for the whole story, describing every named character's
-  visual appearance for an illustrator — species or age and gender, hair or fur colour
-  and style, and clothing colour, e.g. "Sara: a small girl, short brown hair, yellow
-  t-shirt. Mom: a woman, brown hair in a bun, green apron." Nothing about personality or
-  plot, only what a repeated illustration needs to look consistent.
+- "characters": one line, in English, fixed for the whole story, describing every named
+  character's visual appearance for an illustrator — species or age and gender, hair or
+  fur colour and style, and clothing colour, e.g. "Sara: a small girl, short brown hair,
+  yellow t-shirt. Mom: a woman, brown hair in a bun, green apron." Nothing about
+  personality or plot, only what a repeated illustration needs to look consistent.
 - "scenes": 3 to 6 of them, at natural story-beat boundaries (a scene ends when the
   setting, action, or moment changes) — never mid-sentence. Roughly equal in length.
   - "text": that scene's narration, in Persian script. No title, no transliteration, no
@@ -220,6 +220,12 @@ Rules for the story itself:
 - Warm and gentle throughout. Never scary, sad, violent, or sarcastic. A satisfying, happy ending.
 - Don't moralise, and don't let a lesson feel forced — if the story is teaching something, it should come through what happens, never through being told.
 - Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
+- Get the spelling of every word right, especially Persian names for animals, foods,
+  and objects that aren't the everyday obvious ones — this gets read aloud by a
+  text-to-speech voice, which pronounces exactly what's written, so a misspelled or
+  invented word comes out mispronounced.
+- Don't tie the story to Iran or Iranian culture (names included) unless the request
+  asks for that — keep it global.
 - The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them across the whole story, right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in Persian, and they belong in "text", never in "image". Don't overuse them — most sentences need none.`;
 }
 
@@ -490,7 +496,8 @@ async function generateSceneImage(sceneEn, signal) {
   const prompt =
     `${sceneEn}, flat vector illustration for a children's picture book, warm and ` +
     `cheerful, simple bold shapes, soft shading, gentle pastel background, no text, ` +
-    `no watermark, no border`;
+    `no watermark, no border, universal setting and clothing not tied to any one ` +
+    `country or culture`;
 
   const upstream = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
     method: 'POST',

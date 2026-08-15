@@ -607,6 +607,7 @@ async function startStory() {
 
   resetStoryForm();
   setupNote.textContent = '';
+  promptEl.value = '';   // otherwise the next visit to setup still shows this request
   renderHistory();
   await playStory(scenes, selectedTheme?.label || custom || 'A story for you');
 }

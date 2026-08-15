@@ -856,13 +856,16 @@ body[data-mode="play"]  #panel-play { display: flex; }
 }
 
 /* One picture per scene, swapped in step with the narration — a soft
-   crossfade (toggled in JS via .is-changing) instead of a hard cut. Wider
-   than tall so it leaves room below for the text of the same scene. */
+   crossfade (toggled in JS via .is-changing) instead of a hard cut. The box
+   is wider than tall so there's room below for the text of the same scene,
+   but the pictures themselves are square (1024x1024) — `contain`, not
+   `cover`, so the whole picture always shows, letterboxed on the sides
+   rather than cropped top and bottom to fill the box. */
 .story-scene {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: var(--r-md);
   margin-bottom: 12px;
   background: var(--sand);
