@@ -1158,11 +1158,6 @@ async function generateNewWord() {
     return;
   }
 
-  // The image itself is a data: URL (can be 1MB+ of base64) — not worth
-  // dumping whole into the console, just confirming one came back.
-  console.log('[OpenAI] card translation:', { word_fa: pendingCard.word_fa, word_en: pendingCard.word_en });
-  console.log('[OpenAI] card image:', pendingCard.imageUrl ? `${pendingCard.imageUrl.length} chars` : 'none');
-
   cardPreviewImg.src = pendingCard.imageUrl;
   cardPreviewWord.textContent = pendingCard.word_fa;
   cardPreviewEl.hidden = false;
