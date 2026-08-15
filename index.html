@@ -136,13 +136,24 @@
         <p>Tap a card and Bluey says the word in Persian.</p>
       </div>
 
-      <div class="deck-tabs" role="tablist" aria-label="Deck">
-        <button class="deck-tab is-active" id="deck-animals" onclick="setCategory('animals', this)">Animals</button>
-        <button class="deck-tab" id="deck-face" onclick="setCategory('face', this)">Face &amp; body</button>
+      <div class="deck-row">
+        <div class="deck-tabs" role="tablist" aria-label="Deck">
+          <button class="deck-tab is-active" id="deck-animals" onclick="setCategory('animals', this)">Animals</button>
+          <button class="deck-tab" id="deck-face" onclick="setCategory('face', this)">Face &amp; body</button>
+          <button class="deck-tab" id="deck-custom" onclick="setCategory('custom', this)">My Words</button>
+        </div>
+        <button class="icon-btn add-word-btn" onclick="openAddWord()" aria-label="Add a word">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
       </div>
 
       <div class="card" id="card" onclick="sayWord()" role="button" tabindex="0"
            aria-label="Hear this word">
+        <button class="card-del" id="card-del" onclick="deleteCurrentCard(event)" aria-label="Remove this word" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
         <div class="card-art">
           <img id="disp-emoji" src="pictures/animals/bird.png" alt="">
         </div>
@@ -151,6 +162,13 @@
           <span class="counter" id="counter">1 / 9</span>
           <div class="dots" id="dots"></div>
         </div>
+      </div>
+
+      <!-- Shown instead of the card when "My Words" has nothing in it yet -->
+      <div class="card card-empty" id="card-empty" onclick="openAddWord()" role="button" tabindex="0" hidden>
+        <span class="card-empty-icon">＋</span>
+        <p>Add your first word</p>
+        <p class="card-empty-sub">Any word, in English or Farsi</p>
       </div>
 
       <div class="deck-nav">
@@ -218,6 +236,33 @@
 
   </main>
 
+  <!-- ── Add a word (own card: translated, pictured, and spoken) ── -->
+  <div class="sheet-overlay" id="add-word">
+    <div class="sheet">
+      <h2>Add a word</h2>
+      <p class="note">Type any word, in English or Farsi. Bluey will translate it, draw a
+        picture for it, and learn to say it.</p>
+
+      <label class="field">
+        <span class="field-label">Word</span>
+        <input type="text" id="new-word" dir="auto" autocomplete="off"
+               placeholder="apple, or سیب" maxlength="60">
+      </label>
+
+      <div class="card-preview" id="card-preview" hidden>
+        <img id="card-preview-img" alt="">
+        <p id="card-preview-word" dir="rtl" lang="fa"></p>
+      </div>
+
+      <p class="note" id="add-word-status"></p>
+
+      <div class="sheet-actions">
+        <button class="ghost-btn" onclick="closeAddWord()">Cancel</button>
+        <button class="start-btn" id="add-word-btn" onclick="submitNewWord()">Create card</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Settings ── -->
   <div class="sheet-overlay" id="settings">
     <div class="sheet">
@@ -239,7 +284,7 @@
   </div>
 
   <p class="disclaimer">
-    A personal fan project made for my daughter. Not affiliated with, endorsed by, or
+    A personal fan project. Not affiliated with, endorsed by, or
     connected to Bluey or Ludo Studio.
   </p>
 

@@ -330,10 +330,26 @@ body[data-mode="play"]  #panel-play { display: flex; }
   color: var(--ink-soft);
 }
 
+.deck-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .deck-tabs {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
+/* Sits at the app's default icon-btn size (44px) but a touch smaller so it
+   doesn't visually compete with the deck tabs beside it. Overrides the
+   settings gear's rotate-on-hover with a scale, which reads as "add". */
+.add-word-btn {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+.add-word-btn svg { width: 17px; height: 17px; }
+.add-word-btn:hover { color: var(--blue); transform: scale(1.12); }
 .deck-tab {
   padding: 8px 18px;
   border-radius: var(--r-pill);
@@ -350,6 +366,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
 }
 
 .card {
+  position: relative;
   width: 100%;
   background: var(--paper);
   border-radius: var(--r-lg);
@@ -359,6 +376,59 @@ body[data-mode="play"]  #panel-play { display: flex; }
   transition: transform 320ms var(--ease);
 }
 .card.pop { animation: cardPop 380ms var(--ease); }
+
+/* Only shown on cards from "My Words" — the built-in decks can't be edited.
+   Author display rules beat the UA [hidden] one, so it needs an explicit override. */
+.card-del[hidden] { display: none; }
+.card-del {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--ink-faint);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: var(--shadow-sm);
+  transition: color 180ms, background 180ms, transform 180ms;
+}
+.card-del svg { width: 13px; height: 13px; }
+.card-del:hover { color: var(--coral); background: #FFF3EF; transform: scale(1.08); }
+
+/* "My Words" with nothing in it yet — an invitation, not a blank card. */
+.card-empty[hidden] { display: none; }
+.card-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 260px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  border: 2px dashed var(--line);
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.5);
+}
+.card-empty:hover { border-color: var(--blue); color: var(--blue-deep); }
+.card-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--blue);
+}
+.card-empty p { font-size: 1rem; font-weight: 600; }
+.card-empty-sub { font-size: 0.82rem; font-weight: 400; color: var(--ink-faint); }
 @keyframes cardPop {
   0%   { transform: scale(1); }
   42%  { transform: scale(1.035); }
@@ -770,6 +840,34 @@ body.preparing .stop-btn { display: none; }
   background: #F1F5F9;
 }
 .ghost-btn:hover { background: #E6EDF5; }
+
+/* Preview of a newly generated card, shown inside the "Add a word" sheet.
+   An unqualified display:flex here would beat the UA [hidden] rule (author
+   styles always win over UA ones), so the hidden state needs to be explicit. */
+.card-preview[hidden] { display: none; }
+.card-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: var(--r-sm);
+  background: #F4FAFE;
+  animation: panelIn 320ms var(--ease) both;
+}
+.card-preview img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #fff;
+}
+.card-preview p {
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ink);
+}
 
 /* ============================================================
    DISCLAIMER

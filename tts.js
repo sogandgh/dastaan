@@ -30,16 +30,18 @@ export function setVoice(voiceId) {
 const DB_NAME = 'bluey-tts';
 const STORE   = 'clips';
 const STORIES = 'stories';
+const CARDS   = 'cards';
 let dbPromise = null;
 
 function openDB() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 2);
+    const req = indexedDB.open(DB_NAME, 3);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE))   db.createObjectStore(STORE);
       if (!db.objectStoreNames.contains(STORIES)) db.createObjectStore(STORIES);
+      if (!db.objectStoreNames.contains(CARDS))   db.createObjectStore(CARDS);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => reject(req.error);
@@ -241,6 +243,72 @@ export async function deleteStory(key) {
     await new Promise((resolve, reject) => {
       const tx = db.transaction(STORIES, 'readwrite');
       tx.objectStore(STORIES).delete(key);
+      tx.oncomplete = resolve;
+      tx.onerror    = () => reject(tx.error);
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
+// ── Custom flashcards ───────────────────────────────────────────
+/**
+ * Create a custom flashcard: the server translates the word and generates a
+ * picture for it; this stores the result (as a real Blob, not a giant base64
+ * string) and returns it with an object URL ready to display.
+ */
+export async function createCard(word) {
+  const res = await fetch('/api/card', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ word }),
+  });
+  if (!res.ok) throw new Error(await describeError(res));
+
+  const { word_fa, word_en, image } = await res.json();
+  const imageBlob = await (await fetch(image)).blob();   // data: URL -> Blob
+
+  const record = { word_fa, word_en, imageBlob, createdAt: Date.now() };
+  const key = `card-${record.createdAt}-${Math.random().toString(36).slice(2, 7)}`;
+  await idbSet(CARDS, key, record);
+
+  return { ...record, _key: key, imageUrl: URL.createObjectURL(imageBlob) };
+}
+
+/** Custom cards in the order they were added. */
+export async function listCards() {
+  try {
+    const db = await openDB();
+    const store = db.transaction(CARDS, 'readonly').objectStore(CARDS);
+
+    const [values, keys] = await Promise.all([
+      new Promise((resolve, reject) => {
+        const r = store.getAll();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror   = () => reject(r.error);
+      }),
+      new Promise((resolve, reject) => {
+        const r = store.getAllKeys();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror   = () => reject(r.error);
+      }),
+    ]);
+
+    return values
+      .map((r, i) => ({ ...r, _key: keys[i], imageUrl: URL.createObjectURL(r.imageBlob) }))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  } catch {
+    return [];
+  }
+}
+
+/** Forget one custom card. */
+export async function deleteCard(key) {
+  try {
+    const db = await openDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(CARDS, 'readwrite');
+      tx.objectStore(CARDS).delete(key);
       tx.oncomplete = resolve;
       tx.onerror    = () => reject(tx.error);
     });

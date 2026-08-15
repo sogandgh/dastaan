@@ -16,7 +16,8 @@ import { extname, join, normalize } from 'node:path';
 const PORT        = process.env.PORT || 8000;
 const API_KEY     = process.env.ELEVENLABS_API_KEY;
 const OPENAI_KEY  = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-mini';
+const OPENAI_MODEL      = process.env.OPENAI_MODEL || 'gpt-5-mini';
+const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini';
 const ROOT        = process.cwd();
 
 const API_ROOT = 'https://api.elevenlabs.io';
@@ -214,6 +215,117 @@ async function handleStory(req, res) {
   sendJson(res, 200, { story });
 }
 
+/**
+ * Custom flashcards. A parent types one word, in English or Persian; the
+ * server translates it (skipping the call entirely if it's already Farsi
+ * script), then asks OpenAI for a flat-vector illustration matching the
+ * flashcards already in pictures/. The audio is handled by the existing
+ * /api/tts path — this endpoint only returns text + image.
+ */
+const TRANSLATE_SYSTEM_PROMPT = `You help build Persian flashcards for a 3-year-old.
+
+Given one word or short phrase, reply with ONLY a JSON object, nothing else, no
+markdown fences:
+{"fa": "...", "en": "..."}
+
+- "fa": the word in Persian (Farsi script), correct and natural, one word or a short
+  phrase a toddler would use. Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
+- "en": a short, simple, literal English translation (one or two words) — used only to
+  generate a picture, so keep it concrete and unambiguous (e.g. "apple", not "a healthy
+  red fruit").
+- If the input is already Persian, keep "fa" as given (correcting only obvious spelling)
+  and just supply "en".
+- If the input is nonsense or not a real word, still make a reasonable best-effort guess
+  rather than refusing.`;
+
+async function translateWord(word) {
+  const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      reasoning_effort: 'minimal',
+      messages: [
+        { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
+        { role: 'user',   content: word },
+      ],
+    }),
+  });
+  if (!upstream.ok) throw new Error(await openaiErrorMessage(upstream));
+
+  const data = await upstream.json();
+  const raw  = data.choices?.[0]?.message?.content?.trim() || '';
+  const jsonText = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+
+  let parsed;
+  try { parsed = JSON.parse(jsonText); } catch { parsed = null; }
+  if (!parsed?.fa) throw new Error('Could not understand that word. Try another one.');
+
+  return { fa: parsed.fa, en: parsed.en || word };
+}
+
+async function generateCardImage(wordEn) {
+  const prompt =
+    `${wordEn}, flat vector illustration for a children's flashcard, single subject ` +
+    `centered, simple bold shapes, bright cheerful colors, soft shading, solid white ` +
+    `background, no text, no watermark, no border`;
+
+  const upstream = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OPENAI_IMAGE_MODEL,
+      prompt,
+      size: '1024x1024',
+      quality: 'low',
+      n: 1,
+    }),
+  });
+  if (!upstream.ok) throw new Error(await openaiErrorMessage(upstream));
+
+  const data = await upstream.json();
+  const b64  = data.data?.[0]?.b64_json;
+  if (!b64) throw new Error('No image came back. Try a different word.');
+  return b64;
+}
+
+async function openaiErrorMessage(upstream) {
+  try {
+    const body = await upstream.json();
+    return body?.error?.message || `OpenAI error ${upstream.status}.`;
+  } catch {
+    return `OpenAI error ${upstream.status}.`;
+  }
+}
+
+async function handleCard(req, res) {
+  if (!OPENAI_KEY) {
+    return sendJson(res, 500, {
+      error: 'OPENAI_API_KEY is not set. Start the server with it to add custom cards.',
+    });
+  }
+
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+
+  let word = '';
+  try {
+    ({ word = '' } = JSON.parse(Buffer.concat(chunks).toString()));
+  } catch {
+    return sendJson(res, 400, { error: 'Malformed request body.' });
+  }
+  word = word.trim().slice(0, 60);
+  if (!word) return sendJson(res, 400, { error: 'Type a word first.' });
+
+  try {
+    const { fa, en } = await translateWord(word);
+    const image = await generateCardImage(en);
+    sendJson(res, 200, { word_fa: fa, word_en: en, image: `data:image/png;base64,${image}` });
+  } catch (e) {
+    sendJson(res, 502, { error: e.message });
+  }
+}
+
 async function handleStatic(req, res, pathname) {
   // normalize() collapses any ../ so requests cannot escape the project directory.
   const rel  = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
@@ -241,6 +353,7 @@ createServer(async (req, res) => {
     if (pathname === '/api/voices' && req.method === 'GET')  return await handleVoices(res);
     if (pathname === '/api/tts'    && req.method === 'POST') return await handleTts(req, res);
     if (pathname === '/api/story'  && req.method === 'POST') return await handleStory(req, res);
+    if (pathname === '/api/card'   && req.method === 'POST') return await handleCard(req, res);
     return await handleStatic(req, res, pathname);
   } catch (e) {
     sendJson(res, 500, { error: e.message });

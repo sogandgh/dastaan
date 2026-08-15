@@ -68,5 +68,5 @@ mouth is driven by the loudness of the audio itself (a Web Audio `AnalyserNode`)
 a canned animation.
 
 Bluey is a creation of [Ludo Studio](https://www.ludostudio.com.au/). This is an
-unaffiliated personal project made for my own kid, not endorsed by or connected to the
+unaffiliated personal project, not endorsed by or connected to the
 rights holders, and not for commercial use.

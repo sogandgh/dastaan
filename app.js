@@ -1,6 +1,7 @@
 import {
   synthesize, prefetch, listVoices, clearCache, getVoice, setVoice,
   getStory, listStories, deleteStory,
+  createCard, listCards, deleteCard,
 } from './tts.js';
 
 const blueyEl   = document.getElementById('bluey');
@@ -284,25 +285,42 @@ const categories = {
     { img: 'pictures/face/tongue.jpg',  word: 'زبان'  },
     { img: 'pictures/face/tooth.png',   word: 'دندان' },
   ],
+  // Filled from IndexedDB at startup — words the parent has added themselves.
+  custom: [],
 };
 
 let currentCategory = 'animals';
 let currentIndex = 0;
 
-const cardEl    = document.getElementById('card');
-const dispImg   = document.getElementById('disp-emoji');
-const dispWord  = document.getElementById('disp-word');
-const counterEl = document.getElementById('counter');
-const dotsEl    = document.getElementById('dots');
+const cardEl      = document.getElementById('card');
+const cardEmptyEl = document.getElementById('card-empty');
+const cardDelBtn  = document.getElementById('card-del');
+const dispImg     = document.getElementById('disp-emoji');
+const dispWord    = document.getElementById('disp-word');
+const counterEl   = document.getElementById('counter');
+const dotsEl      = document.getElementById('dots');
 
 function updateDisplay(animate = true) {
   const items = categories[currentCategory];
-  const item = items[currentIndex];
 
+  // "My Words" starts empty — show an invitation to add the first one
+  // instead of indexing into a deck that has nothing in it.
+  if (items.length === 0) {
+    cardEl.hidden = true;
+    cardEmptyEl.hidden = false;
+    counterEl.textContent = '';
+    dotsEl.innerHTML = '';
+    return;
+  }
+  cardEl.hidden = false;
+  cardEmptyEl.hidden = true;
+
+  const item = items[currentIndex];
   dispImg.src = item.img;
   dispImg.alt = '';
   dispWord.textContent = item.word;
   counterEl.textContent = `${currentIndex + 1} / ${items.length}`;
+  cardDelBtn.hidden = currentCategory !== 'custom';
 
   dotsEl.innerHTML = '';
   items.forEach((_, i) => {
@@ -329,6 +347,7 @@ function setCategory(cat, btn) {
 
 function navigate(dir) {
   const items = categories[currentCategory];
+  if (items.length === 0) return;
   currentIndex = (currentIndex + dir + items.length) % items.length;
   updateDisplay();
   sayWord();
@@ -336,11 +355,13 @@ function navigate(dir) {
 
 function sayWord() {
   const items = categories[currentCategory];
+  if (items.length === 0) return;
+
   const word = items[currentIndex].word;
   speakText(word);
 
   const voiceId = getVoice();
-  if (voiceId) {
+  if (voiceId && items.length > 1) {
     prefetch(items[(currentIndex + 1) % items.length].word, voiceId);
     prefetch(items[(currentIndex - 1 + items.length) % items.length].word, voiceId);
   }
@@ -651,12 +672,104 @@ cardEl.addEventListener('touchend', e => {
 });
 
 // ============================================================
+//   CUSTOM CARDS  ("My Words")
+// ============================================================
+const addWordEl     = document.getElementById('add-word');
+const newWordInput  = document.getElementById('new-word');
+const addWordStatus = document.getElementById('add-word-status');
+const addWordBtn    = document.getElementById('add-word-btn');
+const cardPreviewEl = document.getElementById('card-preview');
+const cardPreviewImg  = document.getElementById('card-preview-img');
+const cardPreviewWord = document.getElementById('card-preview-word');
+
+async function loadCustomCards() {
+  const cards = await listCards();
+  categories.custom = cards.map(c => ({
+    img: c.imageUrl, word: c.word_fa, _key: c._key,
+  }));
+  // If "My Words" happens to be on screen (e.g. after a delete), reflect the change.
+  if (currentCategory === 'custom') {
+    currentIndex = Math.min(currentIndex, Math.max(0, categories.custom.length - 1));
+    updateDisplay(false);
+  }
+}
+
+function openAddWord() {
+  newWordInput.value = '';
+  addWordStatus.textContent = '';
+  addWordStatus.classList.remove('error');
+  cardPreviewEl.hidden = true;
+  addWordEl.classList.add('open');
+  newWordInput.focus();
+}
+
+function closeAddWord() {
+  addWordEl.classList.remove('open');
+}
+
+async function submitNewWord() {
+  const word = newWordInput.value.trim();
+  if (!word) {
+    addWordStatus.textContent = 'Type a word first.';
+    addWordStatus.classList.add('error');
+    return;
+  }
+
+  addWordBtn.disabled = true;
+  addWordStatus.classList.remove('error');
+  addWordStatus.textContent = 'Translating and drawing a picture…';
+  cardPreviewEl.hidden = true;
+
+  let card;
+  try {
+    card = await createCard(word);
+  } catch (e) {
+    addWordStatus.textContent = e.message;
+    addWordStatus.classList.add('error');
+    addWordBtn.disabled = false;
+    return;
+  }
+
+  cardPreviewImg.src = card.imageUrl;
+  cardPreviewWord.textContent = card.word_fa;
+  cardPreviewEl.hidden = false;
+  addWordStatus.textContent = 'Added!';
+  addWordBtn.disabled = false;
+
+  await loadCustomCards();
+
+  // Switch to "My Words" and land on the card just created.
+  document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
+  document.getElementById('deck-custom').classList.add('is-active');
+  currentCategory = 'custom';
+  currentIndex = categories.custom.length - 1;
+  updateDisplay(true);
+
+  setTimeout(() => { closeAddWord(); sayWord(); }, 700);
+}
+
+async function deleteCurrentCard(event) {
+  event.stopPropagation();   // the card itself also opens sayWord() on click
+  if (currentCategory !== 'custom') return;
+  const item = categories.custom[currentIndex];
+  if (!item) return;
+
+  await deleteCard(item._key);
+  await loadCustomCards();
+  currentIndex = Math.min(currentIndex, Math.max(0, categories.custom.length - 1));
+  updateDisplay(true);
+}
+
+newWordInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitNewWord(); });
+
+// ============================================================
 //   EXPOSE + INIT
 // ============================================================
 Object.assign(window, {
   setMode, setCategory, navigate, sayWord, tapBluey,
   startStory, togglePause, leaveStory,
   openSettings, closeSettings, clearAudioCache,
+  openAddWord, closeAddWord, submitNewWord, deleteCurrentCard,
   __lipSync: lipSync,
 });
 
@@ -665,3 +778,4 @@ renderLengths();
 renderHistory();
 updateDisplay(false);
 voicesReady = refreshVoices();
+loadCustomCards();
