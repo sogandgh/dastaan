@@ -121,13 +121,20 @@ const lipSync = {
 //   to a real user gesture. Starting a story does `await getStory(...)`
 //   (an LLM call, several seconds) before the first audio.play() — by then
 //   the gesture is long gone, so play() is silently denied and the app
-//   falls back out of story mode with nothing having played. Priming a
-//   silent clip synchronously, on the very first tap anywhere on the page,
-//   grants the page a standing allowance so every later play() call — even
-//   ones that happen long after their triggering tap — is honoured for the
-//   rest of the session.
+//   falls back out of story mode with nothing having played.
+//
+//   Priming a *throwaway* Audio element on the first tap (an earlier version
+//   of this fix) didn't hold up: Safari's unlock allowance is scoped to the
+//   specific element that was played via a direct gesture, not to the page
+//   as a whole — a later `new Audio(url)` is a different element and starts
+//   unblessed again. The reliable version reuses ONE element for every clip
+//   the app ever plays (words, greetings, every story chunk), so the exact
+//   element that got blessed on first tap is the same one still playing
+//   five minutes and one LLM call later.
 // ============================================================
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
+const sharedAudio = new Audio();
+sharedAudio.preload = 'auto';
 let audioUnlocked = false;
 
 function unlockAudioForSession() {
@@ -135,7 +142,8 @@ function unlockAudioForSession() {
   audioUnlocked = true;
   lipSync.ensureGraph();   // the AudioContext behind lip sync needs the same unlock
   try {
-    new Audio(SILENT_WAV).play().catch(() => {});
+    sharedAudio.src = SILENT_WAV;
+    sharedAudio.play().catch(() => {});
   } catch { /* best effort — a failed unlock just means the old behaviour */ }
 }
 document.addEventListener('pointerdown', unlockAudioForSession, { once: true, capture: true });
@@ -166,7 +174,11 @@ async function resolveVoice() {
 
 function playClip(url, token) {
   return new Promise(resolve => {
-    const audio = new Audio(url);
+    // Reuse the one blessed element (see AUDIO UNLOCK above) rather than
+    // `new Audio(url)` — a fresh element here would need its own gesture.
+    const audio = sharedAudio;
+    audio.pause();
+    audio.src = url;
     currentAudio = audio;
 
     let settled = false;
