@@ -33,13 +33,14 @@
 }
 .bluey-stage > .bluey { animation: blueyFloat 3s ease-in-out infinite; }
 
-/* ── Excited body bob while talking ── */
-@keyframes blueyBob {
-  0%, 100% { top: 205px; transform: scale(0.7) rotate(0deg); }
-  25%       { top: 200px; transform: scale(0.7) rotate(-1deg); }
-  75%       { top: 208px; transform: scale(0.7) rotate(1deg); }
+/* ── Gentle sway while talking ──
+   The old bob rocked ±1° every 0.35s, which read as a twitch. Slower and
+   smaller: he settles rather than vibrates, and the mouth carries the speech. */
+@keyframes blueySway {
+  0%, 100% { top: 204px; transform: scale(0.7) rotate(-0.35deg); }
+  50%      { top: 199px; transform: scale(0.7) rotate(0.35deg); }
 }
-.bluey-stage.talking > .bluey { animation: blueyBob 0.35s ease-in-out infinite; }
+.bluey-stage.talking > .bluey { animation: blueySway 1.5s ease-in-out infinite; }
 
 /* ── Mobile: scale 0.42, stage 120×220px, anchor (81,120) ── */
 @media (max-width: 640px) {
@@ -57,13 +58,11 @@
     0%, 100% { top: 120px; }
     50%       { top: 112px; }
   }
-  @keyframes blueyBob {
-    0%, 100% { top: 120px; transform: scale(0.42) rotate(0deg); }
-    25%       { top: 116px; transform: scale(0.42) rotate(-1deg); }
-    75%       { top: 123px; transform: scale(0.42) rotate(1deg); }
+  @keyframes blueySway {
+    0%, 100% { top: 119px; transform: scale(0.42) rotate(-0.35deg); }
+    50%      { top: 115px; transform: scale(0.42) rotate(0.35deg); }
   }
 }
-
 
 /* ============================================================
    MOUTH VISEME SYSTEM
@@ -71,32 +70,25 @@
    mouth2 = pink inner oval (reveals inside of mouth)
 ============================================================ */
 
-/* base transitions */
+/* ── Mouth ────────────────────────────────────────────────────
+   --mouth-open runs 0 (shut) to 1 (wide) and is written every frame
+   from the actual loudness of the audio, so the mouth follows the
+   voice instead of cycling through canned shapes.
+------------------------------------------------------------- */
+#bluey {
+  --mouth-open: 0;
+}
 #bluey .main-body .mouth1 {
   clip-path: none;
-  transition: height 0.08s ease, border-radius 0.08s ease;
+  height: calc(3px + var(--mouth-open) * 27px);
+  border-radius: calc(50% - var(--mouth-open) * 20%);
+  transition: height 60ms linear, border-radius 60ms linear;
 }
 #bluey .main-body .mouth2 {
   clip-path: none;
-  transition: height 0.08s ease;
+  height: calc(var(--mouth-open) * 20px);
+  transition: height 60ms linear;
 }
-
-/* mid – slightly open */
-#bluey[data-mouth="mid"] .main-body .mouth1 { height: 14px; }
-#bluey[data-mouth="mid"] .main-body .mouth2 { height: 7px; }
-
-/* open */
-#bluey[data-mouth="open"] .main-body .mouth1 { height: 22px; }
-#bluey[data-mouth="open"] .main-body .mouth2 { height: 14px; }
-
-/* wide – "aah" */
-#bluey[data-mouth="wide"] .main-body .mouth1 { height: 30px; }
-#bluey[data-mouth="wide"] .main-body .mouth2 { height: 20px; }
-
-/* closed */
-#bluey[data-mouth="closed"] .main-body .mouth1 { height: 4px; border-radius: 50%; }
-#bluey[data-mouth="closed"] .main-body .mouth2 { height: 0; }
-
 
 /* ============================================================
    CHARACTER COLOR VARIABLES
@@ -113,20 +105,6 @@
   --char-eyebrow:        #d2ecfd;
   --char-eyebrow-border: #88a8bd;
   --char-tail-top:       white;
-}
-
-.bluey-stage.bingo-mode .bluey {
-  --char-body:           #d98a4a;
-  --char-body-border:    #8b552d;
-  --char-tummy:          #f8e8c9;
-  --char-tummy-border:   #c79b68;
-  --char-spots:          #9b5a30;
-  --char-snout:          #f8e8c9;
-  --char-snout-border:   #8b552d;
-  --char-snout-strip:    #f8e8c9;
-  --char-eyebrow:        #f6dfb8;
-  --char-eyebrow-border: #c79b68;
-  --char-tail-top:       #f8e8c9;
 }
 
 /* ============================================================
@@ -465,14 +443,6 @@
   88%  { top: 118px; transform: scale(0.42); }
   100% { top: 120px; transform: scale(0.42); }
 }
-@keyframes bingoJumpMobile {
-  0%   { top: 120px; transform: scale(0.42); }
-  28%  { top: 82px;  transform: scale(0.42) scaleY(1.04); }
-  52%  { top: 88px;  transform: scale(0.42); }
-  72%  { top: 126px; transform: scale(0.42) scaleY(0.94); }
-  88%  { top: 118px; transform: scale(0.42); }
-  100% { top: 120px; transform: scale(0.42); }
-}
 .bluey-stage.jumping > .bluey {
   animation: blueyJump 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
 }
@@ -620,55 +590,5 @@
   z-index: 1;
   clip-path: polygon(35% 0, 11% 23%, 100% 7%, 100% 24%, 79% 24%, 46% 88%, 0 88.5%, 0 72.5%, 30% 67%, 0 65.5%, 0 53.5%, 32% 54%, 0 45.5%, 0% 0%);
 }
-
-
-/* ============================================================
-   BINGO MODE — same shapes, color vars overridden above, smaller scale
-============================================================ */
-@keyframes bingoFloat {
-  0%, 100% { top: 205px; }
-  50%       { top: 196px; }
-}
-@keyframes bingoBob {
-  0%, 100% { top: 205px; transform: scale(0.7) rotate(0deg); }
-  25%       { top: 200px; transform: scale(0.7) rotate(-1deg); }
-  75%       { top: 208px; transform: scale(0.7) rotate(1deg); }
-}
-@keyframes bingoJump {
-  0%   { top: 205px; transform: scale(0.7); }
-  28%  { top: 168px; transform: scale(0.7) scaleY(1.04); }
-  52%  { top: 173px; transform: scale(0.7); }
-  72%  { top: 210px; transform: scale(0.7) scaleY(0.94); }
-  88%  { top: 203px; transform: scale(0.7); }
-  100% { top: 205px; transform: scale(0.7); }
-}
-.bluey-stage.bingo-mode > .bluey {
-  transform: scale(0.7);
-  animation: bingoFloat 3s ease-in-out infinite;
-}
-.bluey-stage.bingo-mode.talking > .bluey {
-  animation: bingoBob 0.35s ease-in-out infinite;
-}
-.bluey-stage.bingo-mode.jumping > .bluey {
-  animation: bingoJump 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
-}
 @media (max-width: 640px) {
-  @keyframes bingoFloat {
-    0%, 100% { top: 120px; }
-    50%       { top: 112px; }
-  }
-  @keyframes bingoBob {
-    0%, 100% { top: 120px; transform: scale(0.42) rotate(0deg); }
-    25%       { top: 116px; transform: scale(0.42) rotate(-1deg); }
-    75%       { top: 123px; transform: scale(0.42) rotate(1deg); }
-  }
-  .bluey-stage.bingo-mode.jumping > .bluey {
-    animation: bingoJumpMobile 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
-  }
-  .bluey-stage.bingo-mode > .bluey {
-    top: 120px;
-    left: 81px;
-    transform: scale(0.42);
-    animation: bingoFloat 3s ease-in-out infinite;
-  }
 }

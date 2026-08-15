@@ -7,18 +7,24 @@ out loud, using the ElevenLabs text-to-speech API.
 
 ## What it does
 
-- Two decks — **animals** and **face & body** — with pictures and Farsi words.
-- Two characters, **Bluey** and **Bingo**, each with its own ElevenLabs voice.
-- Tap a card to hear the word; tap the character to hear a greeting.
-- The character's mouth animates while it speaks.
-- Navigate with arrows, arrow keys, or swipe.
-- Every clip is cached in IndexedDB, so each word is only generated once.
+**Learn** — two decks, *animals* and *face & body*. Tap a card to hear the Farsi word,
+or tap Bluey for a greeting. Navigate with arrows, arrow keys, or swipe.
+
+**Story** — pick a focus (potty training, sleep, brushing teeth, new food, sharing, big
+feelings), choose 1–3 minutes, or type any request in English *or* Persian. GPT writes
+the story in Persian and Bluey reads it aloud while the screen dims to a warm glow.
+Stories you've made are listed so they can be replayed for free.
+
+Bluey's mouth is driven by the loudness of the audio itself, so it follows the voice
+rather than cycling through canned shapes. Every clip is cached in IndexedDB, so a word
+or a re-told story is only ever generated once.
 
 ## Requirements
 
 - **Node.js 18+** (needs built-in `fetch`)
 - An **[ElevenLabs API key](https://elevenlabs.io/app/settings/api-keys)** with the
   `text_to_speech` and `voices_read` permissions
+- An **[OpenAI API key](https://platform.openai.com/api-keys)** — only needed for stories
 
 Nothing to `npm install` — the frontend is plain HTML/CSS/ES modules and the server uses
 only the Node standard library.
@@ -29,8 +35,11 @@ only the Node standard library.
 git clone https://github.com/sogandgh/farsi-bluey.git
 cd farsi-bluey
 export ELEVENLABS_API_KEY=sk_your_key_here
+export OPENAI_API_KEY=sk-your_key_here      # stories only
 node server.js
 ```
+
+`OPENAI_MODEL` overrides the story model (default `gpt-5-mini`); `PORT` defaults to 8000.
 
 Open **http://localhost:8000**. Voices load automatically; use the ⚙️ panel to change
 which voice each character uses.

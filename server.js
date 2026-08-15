@@ -118,17 +118,41 @@ async function handleTts(req, res) {
  * Story generation. The grown-up may type the request in English or Persian —
  * the story always comes back in Persian, because that is the point of the app.
  */
-const STORY_SYSTEM_PROMPT = `You write very short bedtime stories in Persian (Farsi) for a 3-year-old.
+const WORDS_PER_MINUTE = 130;   // measured against narration at speed 0.9
+
+function buildSystemPrompt(minutes) {
+  const words = Math.round(minutes * WORDS_PER_MINUTE);
+  return `You write bedtime stories in Persian (Farsi) for a 3-year-old.
 
 The request may be written in English or in Persian. Either way, always write the story in Persian.
 
 Rules:
 - Reply with ONLY the story text in Persian script. No title, no transliteration, no English, no markdown, no quotation marks around the whole story.
-- About 120-140 words — roughly one minute read aloud.
+- About ${words} words — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
 - Use simple words a 3-year-old knows. Short sentences.
 - Warm, gentle and happy. Never scary, sad or violent. Always end well.
 - Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
 - If the child is named in the request, write the name لی‌لی.`;
+}
+
+/**
+ * A developmental focus is a teaching goal, not a plot. The story should model
+ * the behaviour through a character a child can copy, never lecture the child.
+ */
+function buildUserPrompt({ prompt, focus }) {
+  const parts = [];
+  if (focus) {
+    parts.push(
+      `Write a story that gently helps a 3-year-old with ${focus}. ` +
+      `Show a character doing it well and feeling good about it. ` +
+      `Do not lecture, moralise, or address the child directly — just tell the story.`
+    );
+  }
+  if (prompt) {
+    parts.push(focus ? `Also make the story about: ${prompt}` : prompt);
+  }
+  return parts.join('\n\n');
+}
 
 async function handleStory(req, res) {
   if (!OPENAI_KEY) {
@@ -140,14 +164,20 @@ async function handleStory(req, res) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
 
-  let prompt;
+  let prompt = '', focus = '', minutes = 1;
   try {
-    ({ prompt } = JSON.parse(Buffer.concat(chunks).toString()));
+    ({ prompt = '', focus = '', minutes = 1 } = JSON.parse(Buffer.concat(chunks).toString()));
   } catch {
     return sendJson(res, 400, { error: 'Malformed request body.' });
   }
-  if (!prompt || !prompt.trim()) {
-    return sendJson(res, 400, { error: 'Ask for a story first.' });
+
+  minutes = Math.min(5, Math.max(1, Number(minutes) || 1));
+  const userPrompt = buildUserPrompt({
+    prompt: String(prompt).trim().slice(0, 500),
+    focus:  String(focus).trim().slice(0, 300),
+  });
+  if (!userPrompt) {
+    return sendJson(res, 400, { error: 'Pick a focus or say what the story is about.' });
   }
 
   const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -162,8 +192,8 @@ async function handleStory(req, res) {
       // than tens of seconds, which matters when a small child is waiting.
       reasoning_effort: 'minimal',
       messages: [
-        { role: 'system', content: STORY_SYSTEM_PROMPT },
-        { role: 'user',   content: prompt.trim().slice(0, 500) },
+        { role: 'system', content: buildSystemPrompt(minutes) },
+        { role: 'user',   content: userPrompt },
       ],
     }),
   });

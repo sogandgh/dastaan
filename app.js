@@ -1,66 +1,117 @@
-// ============================================================
-//   SPEECH ENGINE
-// ============================================================
-
 import {
-  synthesize, prefetch, listVoices, clearCache, getVoices, setVoice,
-  getStory, listStories,
+  synthesize, prefetch, listVoices, clearCache, getVoice, setVoice,
+  getStory, listStories, deleteStory,
 } from './tts.js';
 
-const blueyEl = document.getElementById('bluey');
-const stageEl = document.querySelector('.bluey-stage');
+const blueyEl   = document.getElementById('bluey');
+const stageEl   = document.querySelector('.bluey-stage');
+const captionEl = document.getElementById('bluey-caption');
+const levelsEl  = document.getElementById('levels');
+const toastEl   = document.getElementById('toast');
 
-const VISEME_LOOP = ['open', 'wide', 'mid', 'open', 'closed', 'mid', 'wide', 'open'];
-
+// ============================================================
+//   LIP SYNC  — driven by the audio itself
+//   The mouth used to cycle through canned shapes on a timer, which is why
+//   it looked wrong: it had no relationship to what was being said. Now the
+//   playing audio runs through an analyser and the mouth opens by loudness.
+// ============================================================
 const lipSync = {
-  _raf: null,
-  _frames: [],
-  _frameIndex: 0,
-  _frameEnd: 0,
+  ctx: null,
+  analyser: null,
+  buffer: null,
+  raf: null,
+  level: 0,
+  sources: new WeakMap(),
 
-  start(durationSecs) {
-    this.stop();
-    const frameDur = 110;
-    const count = Math.max(4, Math.ceil((durationSecs * 1000) / frameDur));
-    this._frames = [];
-    for (let i = 0; i < count; i++) {
-      this._frames.push({ viseme: VISEME_LOOP[i % VISEME_LOOP.length], durationMs: frameDur });
+  ensureGraph() {
+    if (!this.ctx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return false;
+      this.ctx = new Ctx();
+      this.analyser = this.ctx.createAnalyser();
+      this.analyser.fftSize = 1024;
+      this.analyser.smoothingTimeConstant = 0.6;
+      this.buffer = new Uint8Array(this.analyser.fftSize);
+      this.analyser.connect(this.ctx.destination);
     }
-    this._frames.push({ viseme: 'rest', durationMs: 80 });
-    this._frameIndex = 0;
-    blueyEl.dataset.mouth = this._frames[0].viseme;
-    this._frameEnd = performance.now() + this._frames[0].durationMs;
-    stageEl.classList.add('talking');
-    this._tick();
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return true;
   },
 
-  _tick() {
-    const now = performance.now();
-    if (now >= this._frameEnd) {
-      this._frameIndex++;
-      if (this._frameIndex >= this._frames.length) {
-        this.stop();
-        return;
+  /** Route an <audio> through the analyser. Safe to call repeatedly. */
+  attach(audio) {
+    if (!this.ensureGraph()) return false;
+    if (!this.sources.has(audio)) {
+      try {
+        const src = this.ctx.createMediaElementSource(audio);
+        src.connect(this.analyser);
+        this.sources.set(audio, src);
+      } catch {
+        return false;   // already routed, or blocked — fall back to a timer
       }
-      const frame = this._frames[this._frameIndex];
-      blueyEl.dataset.mouth = frame.viseme;
-      this._frameEnd = now + frame.durationMs;
     }
-    this._raf = requestAnimationFrame(() => lipSync._tick());
+    return true;
+  },
+
+  start() {
+    stageEl.classList.add('talking');
+    if (this.raf) return;
+    const tick = () => {
+      this.analyser.getByteTimeDomainData(this.buffer);
+      let sum = 0;
+      for (let i = 0; i < this.buffer.length; i++) {
+        const v = (this.buffer[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / this.buffer.length);
+
+      // Speech sits roughly between 0.015 and 0.18 RMS; stretch that to 0..1
+      // and curve it so ordinary syllables read clearly instead of only peaks.
+      let target = Math.min(1, Math.max(0, (rms - 0.012) / 0.15));
+      target = Math.pow(target, 0.7);
+
+      // Ease toward the target so the jaw has weight rather than snapping.
+      this.level += (target - this.level) * 0.4;
+
+      const v = this.level.toFixed(3);
+      blueyEl.style.setProperty('--mouth-open', v);
+      levelsEl?.style.setProperty('--level', v);
+      this.raf = requestAnimationFrame(tick);
+    };
+    this.raf = requestAnimationFrame(tick);
   },
 
   stop() {
-    if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
+    this.level = 0;
     stageEl.classList.remove('talking');
-    blueyEl.dataset.mouth = 'rest';
-  }
+    blueyEl.style.setProperty('--mouth-open', '0');
+    levelsEl?.style.setProperty('--level', '0');
+  },
+
+  /** Used when the analyser is unavailable: a soft, speech-paced flutter. */
+  fallback(durationSecs) {
+    stageEl.classList.add('talking');
+    const started = performance.now();
+    const tick = () => {
+      const t = (performance.now() - started) / 1000;
+      if (t > durationSecs) { this.stop(); return; }
+      const v = (0.5 + 0.5 * Math.sin(t * 11)) * 0.7 + 0.1;
+      blueyEl.style.setProperty('--mouth-open', v.toFixed(3));
+      levelsEl?.style.setProperty('--level', v.toFixed(3));
+      this.raf = requestAnimationFrame(tick);
+    };
+    this.raf = requestAnimationFrame(tick);
+  },
 };
 
+// ============================================================
+//   SPEECH
+// ============================================================
 let currentAudio = null;
-let speakToken   = 0;   // guards against a slow request landing after a newer tap
-let voicesReady  = null; // resolves once the voice list has been fetched
+let speakToken   = 0;
+let voicesReady  = null;
 
-/** Stop whatever is playing and claim the right to speak next. */
 function beginSpeaking() {
   if (currentAudio) {
     currentAudio.pause();
@@ -70,24 +121,16 @@ function beginSpeaking() {
   return ++speakToken;
 }
 
-/** The current character's voice, waiting for the voice list on a cold start. */
 async function resolveVoice() {
-  let voiceId = getVoices()[currentChar];
-  if (!voiceId) {
-    await voicesReady;
-    voiceId = getVoices()[currentChar];
-  }
-  return voiceId;
+  let id = getVoice();
+  if (!id) { await voicesReady; id = getVoice(); }
+  return id;
 }
 
-/**
- * Play a clip, resolving when it finishes so callers can queue the next one.
- * Resolves 'ended', or 'blocked' when the browser refuses to autoplay — the
- * caller must stop rather than race silently through the rest of a story.
- */
 function playClip(url, token) {
   return new Promise(resolve => {
     const audio = new Audio(url);
+    audio.crossOrigin = 'anonymous';
     currentAudio = audio;
 
     let settled = false;
@@ -100,15 +143,16 @@ function playClip(url, token) {
       resolve(outcome);
     };
 
+    const analysed = lipSync.attach(audio);
+
     audio.onloadedmetadata = () => {
-      lipSync.start(audio.duration || 1.0);
-      // A background tab can suspend playback so 'ended' never fires. Without
-      // this the whole story would hang on one chunk, with no way to recover.
+      if (analysed) lipSync.start();
+      else lipSync.fallback(audio.duration || 2);
       clearTimeout(watchdog);
       watchdog = setTimeout(() => done('stalled'), (audio.duration || 10) * 1000 + 8000);
     };
     audio.onended = () => done('ended');
-    audio.onerror  = () => done('error');
+    audio.onerror = () => done('error');
 
     audio.play().catch(e =>
       done(e.name === 'NotAllowedError' ? 'blocked' : 'error')
@@ -121,68 +165,40 @@ function playClip(url, token) {
 
 async function speakText(text) {
   const token = beginSpeaking();
-
   const voiceId = await resolveVoice();
   if (!voiceId) { openSettings(); return; }
 
-  setLoading(true);
   let url;
   try {
     url = await synthesize(text, voiceId);
   } catch (e) {
-    if (token === speakToken) {
-      setLoading(false);
-      showError(e.message);
-    }
+    if (token === speakToken) showError(e.message);
     return;
   }
-  if (token !== speakToken) return;   // a newer word was requested meanwhile
-  setLoading(false);
-
+  if (token !== speakToken) return;
   playClip(url, token);
 }
 
-/**
- * Split a story so Bluey can start talking before the whole thing is
- * synthesised. The first chunk is deliberately short — it is the only part the
- * child waits for. Later chunks are longer, which reads more naturally and
- * costs fewer requests.
- */
+/** Short opening chunk so narration starts sooner; longer ones after. */
 function splitForNarration(text, firstMax = 150, restMax = 240) {
   const sentences = text.match(/[^.؟!…]+[.؟!…]*\s*/g) || [text];
   const chunks = [];
   let buf = '';
-
   for (const s of sentences) {
     const max = chunks.length === 0 ? firstMax : restMax;
-    if (buf && (buf + s).length > max) {
-      chunks.push(buf.trim());
-      buf = s;
-    } else {
-      buf += s;
-    }
+    if (buf && (buf + s).length > max) { chunks.push(buf.trim()); buf = s; }
+    else buf += s;
   }
   if (buf.trim()) chunks.push(buf.trim());
   return chunks;
 }
 
-/**
- * Narrate a long text. Each chunk is synthesised while the previous one plays,
- * so the wait is only ever as long as the first sentence takes.
- * Returns once narration finishes (or is interrupted).
- */
-async function speakStory(text, onProgress) {
+async function speakStory(text) {
   const token = beginSpeaking();
-
   const voiceId = await resolveVoice();
-  if (!voiceId) { openSettings(); return; }
+  if (!voiceId) { openSettings(); return 'no-voice'; }
 
   const chunks = splitForNarration(text);
-  setLoading(true);
-
-  // Synthesise several chunks at once rather than one-at-a-time: a chunk needs
-  // to be ready before the previous one stops playing, and one chunk of lead
-  // time is not enough to cover a longer chunk's synthesis.
   const LOOKAHEAD = 2;
   const pending = new Array(chunks.length).fill(null);
   const start = i => {
@@ -192,51 +208,48 @@ async function speakStory(text, onProgress) {
 
   try {
     const first = await pending[0];
-    if (token !== speakToken) return;
+    if (token !== speakToken) return 'stopped';
 
-    // Give the second chunk a moment to land before starting, so the seam after
-    // the short opening chunk doesn't gap. Bounded, so a slow request can't
-    // hold up the whole story.
+    // Let the second chunk get a head start so the first seam doesn't gap.
     if (chunks.length > 1) {
-      await Promise.race([
-        pending[1],
-        new Promise(r => setTimeout(r, 2000)),
-      ]);
-      if (token !== speakToken) return;
+      await Promise.race([pending[1], new Promise(r => setTimeout(r, 2000))]);
+      if (token !== speakToken) return 'stopped';
     }
-    setLoading(false);
 
     for (let i = 0; i < chunks.length; i++) {
-      const thisUrl = i === 0 ? first : await pending[i];
-      if (token !== speakToken) return;
+      const url = i === 0 ? first : await pending[i];
+      if (token !== speakToken) return 'stopped';
+      start(i + LOOKAHEAD);
 
-      start(i + LOOKAHEAD);   // keep the buffer topped up
-
-      onProgress?.(i + 1, chunks.length);
-      const outcome = await playClip(thisUrl, token);
-      if (token !== speakToken) return;
-
-      // Racing through the remaining chunks in silence would look like the
-      // story simply vanished, so stop and say what happened.
+      const outcome = await playClip(url, token);
+      if (token !== speakToken) return 'stopped';
       if (outcome === 'blocked') {
-        showError('Tap Bluey once to let him talk, then try again.');
-        return;
+        showError('Tap Bluey once to let him talk, then start again.');
+        return 'blocked';
       }
     }
   } catch (e) {
-    if (token === speakToken) {
-      setLoading(false);
-      showError(e.message);
-    }
+    if (token === speakToken) showError(e.message);
+    return 'error';
   }
+  return 'finished';
 }
 
 // ============================================================
-//   DATA
+//   WORDS
 // ============================================================
-const charCategory = { bluey: 'animals', bingo: 'face' };
-
 const categories = {
+  animals: [
+    { img: 'pictures/animals/bird.png',    word: 'پرنده' },
+    { img: 'pictures/animals/cat.png',     word: 'گربه'  },
+    { img: 'pictures/animals/cow.png',     word: 'گاو'   },
+    { img: 'pictures/animals/dog.png',     word: 'سگ'    },
+    { img: 'pictures/animals/fish.png',    word: 'ماهی'  },
+    { img: 'pictures/animals/hourse.webp', word: 'اسب'   },
+    { img: 'pictures/animals/mouse.png',   word: 'موش'   },
+    { img: 'pictures/animals/pig.png',     word: 'خوک'   },
+    { img: 'pictures/animals/rabbit.png',  word: 'خرگوش' },
+  ],
   face: [
     { img: 'pictures/face/ear.png',     word: 'گوش'   },
     { img: 'pictures/face/eye.png',     word: 'چشم'   },
@@ -250,62 +263,25 @@ const categories = {
     { img: 'pictures/face/tongue.jpg',  word: 'زبان'  },
     { img: 'pictures/face/tooth.png',   word: 'دندان' },
   ],
-  animals: [
-    { img: 'pictures/animals/bird.png',    word: 'پرنده' },
-    { img: 'pictures/animals/cat.png',     word: 'گربه'  },
-    { img: 'pictures/animals/cow.png',     word: 'گاو'   },
-    { img: 'pictures/animals/dog.png',     word: 'سگ'    },
-    { img: 'pictures/animals/fish.png',    word: 'ماهی'  },
-    { img: 'pictures/animals/hourse.webp', word: 'اسب'   },
-    { img: 'pictures/animals/mouse.png',   word: 'موش'   },
-    { img: 'pictures/animals/pig.png',     word: 'خوک'   },
-    { img: 'pictures/animals/rabbit.png',  word: 'خرگوش' },
-  ],
 };
 
-// ============================================================
-//   GREETINGS
-// ============================================================
-let greetings = { bluey: [], bingo: [] };
-let greetingIndex = 0;
-let currentChar = 'bluey';
-
-fetch('greetings.json')
-  .then(r => r.json())
-  .then(data => {
-    greetings = data;
-    setTimeout(() => {
-      spawnSparkles();
-      playHi();
-    }, 800);
-  });
-
-// ============================================================
-//   STATE & DOM
-// ============================================================
 let currentCategory = 'animals';
-let currentIndex    = 0;
+let currentIndex = 0;
 
-const bubbleText = document.getElementById('bubble-text');
-const bubble     = document.querySelector('.speech-bubble');
-const dispEmoji  = document.getElementById('disp-emoji');
-const dispWord   = document.getElementById('disp-word');
-const counterEl  = document.getElementById('counter');
-const dotsEl     = document.getElementById('dots');
-const cardEl     = document.getElementById('card');
+const cardEl    = document.getElementById('card');
+const dispImg   = document.getElementById('disp-emoji');
+const dispWord  = document.getElementById('disp-word');
+const counterEl = document.getElementById('counter');
+const dotsEl    = document.getElementById('dots');
 
-// ============================================================
-//   UI HELPERS
-// ============================================================
-function updateDisplay(animate) {
+function updateDisplay(animate = true) {
   const items = categories[currentCategory];
-  const item  = items[currentIndex];
+  const item = items[currentIndex];
 
-  dispEmoji.src = item.img || '';
-  dispEmoji.style.display = item.img ? '' : 'none';
-  dispWord.textContent  = item.word;
+  dispImg.src = item.img;
+  dispImg.alt = '';
+  dispWord.textContent = item.word;
   counterEl.textContent = `${currentIndex + 1} / ${items.length}`;
-  if (animate) setBubble(item.word);
 
   dotsEl.innerHTML = '';
   items.forEach((_, i) => {
@@ -315,134 +291,284 @@ function updateDisplay(animate) {
   });
 
   if (animate) {
-    cardEl.classList.remove('bounce');
+    cardEl.classList.remove('pop');
     void cardEl.offsetWidth;
-    cardEl.classList.add('bounce');
+    cardEl.classList.add('pop');
   }
 }
 
-function setBubble(text) {
-  bubbleText.textContent = text + ' 🐾';
-  bubble.classList.remove('pop');
-  void bubble.offsetWidth;
-  bubble.classList.add('pop');
-}
-
-// ============================================================
-//   NAVIGATION & SPEECH
-// ============================================================
 function setCategory(cat, btn) {
   currentCategory = cat;
-  currentIndex    = 0;
-  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  updateDisplay(true);
-  setTimeout(sayWord, 300);
+  currentIndex = 0;
+  document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
+  btn.classList.add('is-active');
+  updateDisplay();
+  sayWord();
 }
 
 function navigate(dir) {
   const items = categories[currentCategory];
   currentIndex = (currentIndex + dir + items.length) % items.length;
-  updateDisplay(true);
-  spawnSparkles();
-  stageEl.classList.remove('jumping');
-  void stageEl.offsetWidth;
-  stageEl.classList.add('jumping');
-  stageEl.addEventListener('animationend', function onJumpEnd(e) {
-    if (e.animationName === 'blueyJump' || e.animationName === 'blueyJumpMobile' || e.animationName === 'bingoJump' || e.animationName === 'bingoJumpMobile') {
-      stageEl.classList.remove('jumping');
-      stageEl.removeEventListener('animationend', onJumpEnd);
-    }
-  });
-  setTimeout(sayWord, 280);
+  updateDisplay();
+  sayWord();
 }
 
 function sayWord() {
   const items = categories[currentCategory];
-  speakText(items[currentIndex].word);
+  const word = items[currentIndex].word;
+  showCaption(word);
+  speakText(word);
 
-  // Warm the neighbours so arrowing through the deck feels instant.
-  const voiceId = getVoices()[currentChar];
+  const voiceId = getVoice();
   if (voiceId) {
-    const next = (currentIndex + 1) % items.length;
-    const prev = (currentIndex - 1 + items.length) % items.length;
-    prefetch(items[next].word, voiceId);
-    prefetch(items[prev].word, voiceId);
+    prefetch(items[(currentIndex + 1) % items.length].word, voiceId);
+    prefetch(items[(currentIndex - 1 + items.length) % items.length].word, voiceId);
   }
 }
 
-function changeGreeting(dir) {
-  const list = greetings[currentChar] || [];
-  if (list.length === 0) return;
-  greetingIndex = (greetingIndex + dir + list.length) % list.length;
-  playHi();
+let captionTimer = null;
+function showCaption(text) {
+  captionEl.textContent = text;
+  captionEl.classList.add('show');
+  clearTimeout(captionTimer);
+  captionTimer = setTimeout(() => captionEl.classList.remove('show'), 3200);
 }
 
-function playHi() {
-  const list = greetings[currentChar] || [];
-  if (list.length > 0) {
-    const g = list[greetingIndex % list.length];
-    if (g.text) {
-      setBubble(g.text);
-      speakText(g.text);
-    }
-  }
-  stageEl.classList.remove('waving');
-  void stageEl.offsetWidth;
-  stageEl.classList.add('waving');
-  stageEl.addEventListener('animationend', function onWaveEnd(e) {
-    if (e.animationName === 'blueyWave') {
-      stageEl.classList.remove('waving');
-      stageEl.removeEventListener('animationend', onWaveEnd);
-    }
+const GREETINGS = ['سلام لی‌لی', 'خوبی لی‌لی؟', 'خداحافظ لی‌لی'];
+let greetingIndex = 0;
+
+function tapBluey() {
+  if (document.body.dataset.mode === 'play') return;
+  const g = GREETINGS[greetingIndex % GREETINGS.length];
+  greetingIndex++;
+  showCaption(g);
+  speakText(g);
+}
+
+// ============================================================
+//   MODES
+// ============================================================
+function setMode(mode) {
+  document.body.dataset.mode = mode;
+  if (mode === 'setup') renderHistory();
+  document.getElementById('tab-learn').classList.toggle('is-active', mode === 'learn');
+  document.getElementById('tab-story').classList.toggle('is-active', mode !== 'learn');
+  document.getElementById('tab-learn').setAttribute('aria-selected', mode === 'learn');
+  document.getElementById('tab-story').setAttribute('aria-selected', mode !== 'learn');
+}
+
+// ============================================================
+//   STORY SETUP
+//   Six focuses drawn from things a 3-year-old is actually working on.
+// ============================================================
+const THEMES = [
+  {
+    id: 'potty', label: 'Potty time', color: '#5AA9E6',
+    focus: 'using the potty on their own, staying dry, and feeling proud about it',
+    icon: '<rect x="6.5" y="2.8" width="10.5" height="5.2" rx="1.2"/><path d="M4.2 9.6h15.6v1a6.6 6 0 0 1-6.6 6h-2.4a6.6 6 0 0 1-6.6-6z"/><path d="M10.2 16.8 9.6 21h4.8l-.6-4.2"/>',
+  },
+  {
+    id: 'sleep', label: 'Going to sleep', color: '#7B7FD4',
+    focus: 'settling down at bedtime, staying in their own bed, and falling asleep calmly',
+    icon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/><path d="M16 4.5l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/>',
+  },
+  {
+    id: 'teeth', label: 'Brushing teeth', color: '#48B89F',
+    focus: 'brushing their teeth morning and night without a fuss',
+    icon: '<path d="M5 9c0-2 1.6-3.4 3.5-3.4 1.2 0 2.3.5 3.5.5s2.3-.5 3.5-.5C17.4 5.6 19 7 19 9c0 3-1.2 4-1.7 6.4-.4 1.8-.7 3.6-1.8 3.6-1.3 0-1.2-2.6-2-4.3-.3-.6-.7-1-1.5-1s-1.2.4-1.5 1c-.8 1.7-.7 4.3-2 4.3-1.1 0-1.4-1.8-1.8-3.6C6.2 13 5 12 5 9z"/>',
+  },
+  {
+    id: 'food', label: 'Trying new food', color: '#E8964F',
+    focus: 'being brave about tasting a new food at dinner',
+    icon: '<path d="M12 8.8c-1-1.2-2.4-1.7-3.7-1.2C6.5 8.3 5.5 10.2 6 12.5c.5 2.5 2.3 5.6 3.9 6.4 1 .5 1.5 0 2.1 0s1.1.5 2.1 0c1.6-.8 3.4-3.9 3.9-6.4.5-2.3-.5-4.2-2.3-4.9-1.3-.5-2.7 0-3.7 1.2z"/><path d="M12 8.8V5.6"/><path d="M12 5.6c1.6 0 2.6-1 2.6-2.6-1.6 0-2.6 1-2.6 2.6z"/>',
+  },
+  {
+    id: 'sharing', label: 'Sharing with friends', color: '#E4779B',
+    focus: 'taking turns and sharing toys with a friend, even when it is hard',
+    icon: '<path d="M12 20s-6.5-4-6.5-9A3.5 3.5 0 0 1 12 9.4 3.5 3.5 0 0 1 18.5 11c0 5-6.5 9-6.5 9z"/>',
+  },
+  {
+    id: 'feelings', label: 'Big feelings', color: '#C77DD4',
+    focus: 'noticing a big feeling like anger or frustration and finding a way to calm down',
+    icon: '<circle cx="12" cy="12" r="8.2"/><path d="M9 10.2h.01M15 10.2h.01"/><path d="M8.8 15.2c.9-1 2-1.5 3.2-1.5s2.3.5 3.2 1.5"/>',
+  },
+];
+
+const LENGTHS = [
+  { minutes: 1, label: '1 min' },
+  { minutes: 2, label: '2 min' },
+  { minutes: 3, label: '3 min' },
+];
+
+let selectedTheme = null;
+let selectedMinutes = 1;
+
+const themesEl    = document.getElementById('themes');
+const lengthsEl   = document.getElementById('lengths');
+const promptEl    = document.getElementById('story-prompt');
+const startBtn    = document.getElementById('start-btn');
+const setupNote   = document.getElementById('setup-note');
+const storyTextEl = document.getElementById('story-text');
+const playThemeEl = document.getElementById('playing-theme');
+
+function renderThemes() {
+  themesEl.innerHTML = '';
+  THEMES.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'theme';
+    b.style.color = t.color;
+    b.innerHTML =
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+            stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg>
+       <span>${t.label}</span>`;
+    b.onclick = () => {
+      selectedTheme = selectedTheme?.id === t.id ? null : t;
+      renderThemes();
+    };
+    if (selectedTheme?.id === t.id) b.classList.add('is-active');
+    themesEl.appendChild(b);
   });
 }
 
-// ============================================================
-//   CHARACTER SWITCH
-// ============================================================
-function switchChar(name) {
-  currentChar = name;
-  const isBingo = name === 'bingo';
-  stageEl.classList.toggle('bingo-mode', isBingo);
-  document.getElementById('btn-bluey').classList.toggle('active', !isBingo);
-  document.getElementById('btn-bingo').classList.toggle('active', isBingo);
-  currentCategory = charCategory[name];
-  currentIndex = 0;
-  greetingIndex = 0;
-  updateDisplay(false);
-  playHi();
-}
-window.switchChar = switchChar;
-
-// Expose to HTML onclick handlers
-window.setCategory     = setCategory;
-window.navigate        = navigate;
-window.sayWord         = sayWord;
-window.playHi          = playHi;
-window.changeGreeting  = changeGreeting;
-
-// ============================================================
-//   SETTINGS  (API key + voice picking, all client side)
-// ============================================================
-const settingsEl = document.getElementById('settings');
-const voiceBluey = document.getElementById('voice-bluey');
-const voiceBingo = document.getElementById('voice-bingo');
-const statusEl   = document.getElementById('settings-status');
-const toastEl    = document.getElementById('toast');
-
-function openSettings() {
-  settingsEl.classList.add('open');
-  refreshVoices();
+function renderLengths() {
+  lengthsEl.innerHTML = '';
+  LENGTHS.forEach(l => {
+    const b = document.createElement('button');
+    b.className = 'length' + (l.minutes === selectedMinutes ? ' is-active' : '');
+    b.textContent = l.label;
+    b.onclick = () => { selectedMinutes = l.minutes; renderLengths(); };
+    lengthsEl.appendChild(b);
+  });
 }
 
-function closeSettings() {
-  settingsEl.classList.remove('open');
+async function startStory() {
+  const custom = promptEl.value.trim();
+  if (!selectedTheme && !custom) {
+    setupNote.textContent = 'Pick a focus above, or type what the story should be about.';
+    setupNote.classList.add('error');
+    return;
+  }
+
+  setupNote.classList.remove('error');
+  setupNote.textContent = 'Writing the story…';
+  startBtn.disabled = true;
+
+  let story;
+  try {
+    ({ story } = await getStory({
+      prompt:  custom,
+      focus:   selectedTheme?.focus || '',
+      minutes: selectedMinutes,
+      label:   custom || selectedTheme?.label || 'A story',
+    }));
+  } catch (e) {
+    setupNote.textContent = e.message;
+    setupNote.classList.add('error');
+    startBtn.disabled = false;
+    return;
+  }
+
+  setupNote.textContent = '';
+  startBtn.disabled = false;
+  renderHistory();
+  await playStory(story, selectedTheme?.label || custom || 'A story for you');
 }
 
-function setStatus(msg, isError) {
-  statusEl.textContent = msg || '';
-  statusEl.classList.toggle('error', !!isError);
+/** Shared by a fresh story and by replaying one from the history. */
+async function playStory(story, label) {
+  storyTextEl.textContent = story;
+  playThemeEl.textContent = label;
+  setMode('play');
+  const outcome = await speakStory(story);
+  if (outcome !== 'stopped') setMode('setup');
+}
+
+// ── History ──────────────────────────────────────────────────
+const historyEl     = document.getElementById('history');
+const historyListEl = document.getElementById('history-list');
+
+async function renderHistory() {
+  const stories = await listStories();
+  historyEl.hidden = stories.length === 0;
+  historyListEl.innerHTML = '';
+
+  stories.forEach(rec => {
+    const li = document.createElement('li');
+    li.className = 'history-item';
+
+    const play = document.createElement('button');
+    play.className = 'history-play';
+    // dir="auto" so a Persian label renders right-to-left and an English one doesn't.
+    play.innerHTML =
+      `<span class="history-label" dir="auto">${escapeHtml(rec.label)}</span>
+       <span class="history-meta">${rec.minutes} min${rec.minutes > 1 ? 's' : ''}</span>`;
+    play.onclick = () => playStory(rec.story, rec.label);
+
+    const del = document.createElement('button');
+    del.className = 'history-del';
+    del.setAttribute('aria-label', `Remove ${rec.label}`);
+    del.innerHTML =
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+            stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+    del.onclick = async () => { await deleteStory(rec.savedAt); renderHistory(); };
+
+    li.append(play, del);
+    historyListEl.appendChild(li);
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function stopStory() {
+  beginSpeaking();          // bumps the token, so narration unwinds
+  setMode('setup');
+}
+
+// ============================================================
+//   SETTINGS
+// ============================================================
+const settingsEl  = document.getElementById('settings');
+const voiceSelect = document.getElementById('voice-bluey');
+const statusEl    = document.getElementById('settings-status');
+
+function openSettings()  { settingsEl.classList.add('open'); refreshVoices(); }
+function closeSettings() { settingsEl.classList.remove('open'); }
+
+async function refreshVoices() {
+  statusEl.textContent = 'Loading voices…';
+  statusEl.classList.remove('error');
+  try {
+    const voices = await listVoices();
+    const saved = getVoice();
+    voiceSelect.innerHTML = '';
+    voices.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v.voice_id;
+      const traits = [v.labels.age, v.labels.gender, v.labels.accent].filter(Boolean).join(', ');
+      o.textContent = traits ? `${v.name} — ${traits}` : v.name;
+      if (saved === v.voice_id) o.selected = true;
+      voiceSelect.appendChild(o);
+    });
+    if (!saved && voices[0]) {
+      setVoice(voices[0].voice_id);
+      voiceSelect.value = voices[0].voice_id;
+    }
+    statusEl.textContent = `${voices.length} voices available.`;
+  } catch (e) {
+    statusEl.textContent = e.message;
+    statusEl.classList.add('error');
+  }
+}
+
+voiceSelect.addEventListener('change', () => setVoice(voiceSelect.value));
+
+async function clearAudioCache() {
+  await clearCache();
+  statusEl.textContent = 'Saved audio cleared.';
+  statusEl.classList.remove('error');
 }
 
 let toastTimer = null;
@@ -450,180 +576,27 @@ function showError(msg) {
   toastEl.textContent = msg;
   toastEl.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 4000);
-}
-
-function setLoading(on) {
-  stageEl.classList.toggle('loading', on);
-}
-
-async function refreshVoices() {
-  setStatus('Loading voices…');
-  try {
-    const voices = await listVoices();
-    const saved  = getVoices();
-
-    [voiceBluey, voiceBingo].forEach(sel => {
-      const character = sel === voiceBluey ? 'bluey' : 'bingo';
-      sel.innerHTML = '';
-      voices.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v.voice_id;
-        const traits = [v.labels.age, v.labels.gender, v.labels.accent]
-          .filter(Boolean).join(', ');
-        opt.textContent = traits ? `${v.name} — ${traits}` : v.name;
-        if (saved[character] === v.voice_id) opt.selected = true;
-        sel.appendChild(opt);
-      });
-    });
-
-    // First run: pre-select two different voices so it works immediately.
-    if (!saved.bluey && voices[0]) {
-      setVoice('bluey', voices[0].voice_id);
-      voiceBluey.value = voices[0].voice_id;
-    }
-    if (!saved.bingo && voices[1]) {
-      setVoice('bingo', voices[1].voice_id);
-      voiceBingo.value = voices[1].voice_id;
-    }
-
-    setStatus(`${voices.length} voices loaded.`);
-  } catch (e) {
-    setStatus(e.message, true);
-  }
-}
-
-voiceBluey.addEventListener('change', () => setVoice('bluey', voiceBluey.value));
-voiceBingo.addEventListener('change', () => setVoice('bingo', voiceBingo.value));
-
-async function clearAudioCache() {
-  await clearCache();
-  setStatus('Cached audio cleared.');
-}
-
-window.openSettings    = openSettings;
-window.closeSettings   = closeSettings;
-window.clearAudioCache = clearAudioCache;
-
-// ============================================================
-//   STORY TIME
-// ============================================================
-const storyEl     = document.getElementById('story');
-const storyPrompt = document.getElementById('story-prompt');
-const storyStatus = document.getElementById('story-status');
-const storyTextEl = document.getElementById('story-text');
-const storyGoBtn  = document.getElementById('story-go');
-const storyLibEl  = document.getElementById('story-library');
-
-function openStory() {
-  storyEl.classList.add('open');
-  storyPrompt.focus();
-  renderLibrary();
-}
-
-function closeStory() {
-  storyEl.classList.remove('open');
-}
-
-async function renderLibrary() {
-  const prompts = await listStories();
-  storyLibEl.innerHTML = '';
-  if (!prompts.length) return;
-
-  const title = document.createElement('p');
-  title.className = 'story-library-title';
-  title.textContent = 'Told before (free to hear again)';
-  storyLibEl.appendChild(title);
-
-  prompts.forEach(p => {
-    const b = document.createElement('button');
-    b.className = 'story-chip';
-    b.dir = 'auto';
-    b.textContent = p;
-    b.onclick = () => { storyPrompt.value = p; tellStory(); };
-    storyLibEl.appendChild(b);
-  });
-}
-
-async function tellStory() {
-  const prompt = storyPrompt.value.trim();
-  if (!prompt) {
-    storyStatus.textContent = 'Ask for a story first.';
-    storyStatus.classList.add('error');
-    return;
-  }
-
-  storyGoBtn.disabled = true;
-  storyStatus.classList.remove('error');
-  storyStatus.textContent = 'Writing the story…';
-  storyTextEl.textContent = '';
-
-  let story, fromCache;
-  try {
-    ({ story, fromCache } = await getStory(prompt));
-  } catch (e) {
-    storyStatus.textContent = e.message;
-    storyStatus.classList.add('error');
-    storyGoBtn.disabled = false;
-    return;
-  }
-
-  storyTextEl.textContent = story;
-  storyStatus.textContent = 'Bluey is getting ready…';
-
-  await speakStory(story, (part, total) => {
-    storyStatus.textContent = `Bluey is reading it… (${part}/${total})`;
-  });
-  storyStatus.textContent = '';
-  storyGoBtn.disabled = false;
-  renderLibrary();
-}
-
-storyPrompt.addEventListener('keydown', e => {
-  if (e.key === 'Enter') tellStory();
-});
-
-window.openStory  = openStory;
-window.closeStory = closeStory;
-window.tellStory  = tellStory;
-
-// Load voices on startup so the first tap already has a voice to speak with.
-// speakText awaits this promise rather than racing it.
-voicesReady = refreshVoices();
-
-// ============================================================
-//   SPARKLES
-// ============================================================
-const SPARKS = ['⭐', '✨', '🌟', '💫', '🪄'];
-function spawnSparkles() {
-  for (let i = 0; i < 6; i++) {
-    setTimeout(() => {
-      const s = document.createElement('div');
-      s.className   = 'sparkle';
-      s.textContent = SPARKS[Math.floor(Math.random() * SPARKS.length)];
-      s.style.left  = (15 + Math.random() * 70) + 'vw';
-      s.style.top   = (25 + Math.random() * 45) + 'vh';
-      document.body.appendChild(s);
-      setTimeout(() => s.remove(), 950);
-    }, i * 90);
-  }
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 4200);
 }
 
 // ============================================================
-//   KEYBOARD & SWIPE
+//   INPUT
 // ============================================================
 document.addEventListener('keydown', e => {
-  // Don't hijack keys while a grown-up is typing a story request.
   const t = e.target;
   if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
-
-  if (e.key === 'ArrowLeft')               navigate(-1);
-  if (e.key === 'ArrowRight')              navigate(1);
-  if (e.key === ' ' || e.key === 'Enter')  sayWord();
+  if (document.body.dataset.mode !== 'learn') {
+    if (e.key === 'Escape' && document.body.dataset.mode === 'play') stopStory();
+    return;
+  }
+  if (e.key === 'ArrowLeft')  navigate(-1);
+  if (e.key === 'ArrowRight') navigate(1);
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sayWord(); }
 });
 
-let touchX = 0;
-let touchY = 0;
+promptEl.addEventListener('keydown', e => { if (e.key === 'Enter') startStory(); });
+
+let touchX = 0, touchY = 0;
 cardEl.addEventListener('touchstart', e => {
   touchX = e.touches[0].clientX;
   touchY = e.touches[0].clientY;
@@ -631,12 +604,20 @@ cardEl.addEventListener('touchstart', e => {
 cardEl.addEventListener('touchend', e => {
   const dx = touchX - e.changedTouches[0].clientX;
   const dy = touchY - e.changedTouches[0].clientY;
-  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-    navigate(dx > 0 ? 1 : -1);
-  }
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) navigate(dx > 0 ? 1 : -1);
 });
 
 // ============================================================
-//   INIT
+//   EXPOSE + INIT
 // ============================================================
+Object.assign(window, {
+  setMode, setCategory, navigate, sayWord, tapBluey,
+  startStory, stopStory,
+  openSettings, closeSettings, clearAudioCache,
+});
+
+renderThemes();
+renderLengths();
+renderHistory();
 updateDisplay(false);
+voicesReady = refreshVoices();

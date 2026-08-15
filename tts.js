@@ -11,24 +11,19 @@
  * live in server.js, not here.
  */
 
-const LS_VOICES = 'bluey.elevenlabs.voices';
+const LS_VOICE = 'bluey.elevenlabs.voice';
 
 // Cache keys are versioned by model so changing the model invalidates old clips.
 const CACHE_NS = 'eleven_v3';
 
-// ── Voice preferences (not secret — safe in localStorage) ───────
-export function getVoices() {
-  try {
-    return JSON.parse(localStorage.getItem(LS_VOICES)) || {};
-  } catch {
-    return {};
-  }
+// ── Voice preference (not secret — safe in localStorage) ────────
+export function getVoice() {
+  return localStorage.getItem(LS_VOICE) || '';
 }
 
-export function setVoice(character, voiceId) {
-  const voices = getVoices();
-  voices[character] = voiceId;
-  localStorage.setItem(LS_VOICES, JSON.stringify(voices));
+export function setVoice(voiceId) {
+  if (voiceId) localStorage.setItem(LS_VOICE, voiceId);
+  else localStorage.removeItem(LS_VOICE);
 }
 
 // ── IndexedDB clip cache ────────────────────────────────────────
@@ -159,36 +154,89 @@ export async function prefetch(text, voiceId) {
  * children want *that* story again, not a new one, and a cached story also hits
  * the cached audio, so a repeat costs nothing and plays instantly.
  */
-export async function getStory(prompt) {
-  const key = prompt.trim().toLowerCase().replace(/\s+/g, ' ');
+export async function getStory({ prompt = '', focus = '', minutes = 1, label = '' }) {
+  const key = [
+    minutes,
+    focus,
+    prompt.trim().toLowerCase().replace(/\s+/g, ' '),
+  ].join('|');
 
   const cached = await idbGet(STORIES, key);
-  if (cached) return { story: cached, fromCache: true };
+  if (cached) {
+    // Older builds stored the bare text; keep those readable.
+    const story = typeof cached === 'string' ? cached : cached.story;
+    return { story, fromCache: true };
+  }
 
   const res = await fetch('/api/story', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, focus, minutes }),
   });
   if (!res.ok) throw new Error(await describeError(res));
 
   const { story } = await res.json();
-  await idbSet(STORIES, key, story);
+  await idbSet(STORIES, key, {
+    story,
+    label: label || prompt.trim() || 'A story',
+    minutes,
+    savedAt: Date.now(),
+  });
   return { story, fromCache: false };
 }
 
-/** Every story asked for so far, newest last — the child's own library. */
+/** Stories told before, newest first. Replaying one costs nothing. */
 export async function listStories() {
   try {
     const db = await openDB();
-    return await new Promise((resolve, reject) => {
+    const records = await new Promise((resolve, reject) => {
       const store = db.transaction(STORIES, 'readonly').objectStore(STORIES);
-      const keys  = store.getAllKeys();
-      keys.onsuccess = () => resolve(keys.result || []);
-      keys.onerror   = () => reject(keys.error);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror   = () => reject(req.error);
     });
+
+    return records
+      .map(r => (typeof r === 'string' ? { story: r, minutes: 1, savedAt: 0 } : r))
+      .filter(r => r && r.story)
+      // Records saved before labels existed still deserve a name: use the
+      // story's opening words rather than calling everything "A story".
+      .map(r => ({ ...r, label: r.label || openingWords(r.story) }))
+      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
   } catch {
     return [];
+  }
+}
+
+function openingWords(story) {
+  const words = story.trim().split(/\s+/).slice(0, 5).join(' ');
+  return words.length < story.trim().length ? `${words}…` : words;
+}
+
+/** Forget one saved story. Its audio clips stay cached until the cache is cleared. */
+export async function deleteStory(savedAt) {
+  try {
+    const db = await openDB();
+    const store = db.transaction(STORIES, 'readwrite').objectStore(STORIES);
+    const keys = await new Promise(res => {
+      const r = store.getAllKeys();
+      r.onsuccess = () => res(r.result || []);
+      r.onerror   = () => res([]);
+    });
+    for (const k of keys) {
+      const rec = await idbGet(STORIES, k);
+      if (rec && typeof rec === 'object' && rec.savedAt === savedAt) {
+        await new Promise(res => {
+          const tx = db.transaction(STORIES, 'readwrite');
+          tx.objectStore(STORIES).delete(k);
+          tx.oncomplete = res;
+          tx.onerror = res;
+        });
+        return;
+      }
+    }
+  } catch {
+    /* best effort */
   }
 }
 
