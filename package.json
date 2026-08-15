@@ -1,0 +1,12 @@
+{
+  "name": "farsi-bluey",
+  "private": true,
+  "type": "module",
+  "description": "Persian flashcards and Farsi bedtime stories, narrated by a CSS-drawn Bluey via ElevenLabs.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
