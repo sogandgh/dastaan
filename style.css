@@ -1073,7 +1073,10 @@ body[data-mode="play"] .disclaimer { opacity: 0; }
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 26px;
+  /* iOS Safari's bottom toolbar/home-indicator area can visually cover a
+     plain `bottom: 26px` fixed element — env() adds real clearance on a
+     phone that has one, and is a harmless 0 everywhere else. */
+  bottom: calc(26px + env(safe-area-inset-bottom, 0px));
   z-index: 60;
   max-width: min(88vw, 420px);
   padding: 13px 20px;
@@ -1082,7 +1085,9 @@ body[data-mode="play"] .disclaimer { opacity: 0; }
   color: #fff;
   font-size: 0.87rem;
   font-weight: 500;
+  line-height: 1.45;
   text-align: center;
+  overflow-wrap: break-word;
   box-shadow: var(--shadow-lg);
   opacity: 0;
   transform: translate(-50%, 12px);
