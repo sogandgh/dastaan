@@ -1,7 +1,8 @@
 import {
   synthesize, prefetch, listVoices, clearCache, getVoice, setVoice,
   getStory, listStories, deleteStory,
-  createCard, listCards, deleteCard,
+  createCollection, listCollections, deleteCollection,
+  generateCard, saveCard, listCards, deleteCard,
 } from './tts.js';
 
 const blueyEl   = document.getElementById('bluey');
@@ -285,9 +286,14 @@ const categories = {
     { img: 'pictures/face/tongue.jpg',  word: 'زبان'  },
     { img: 'pictures/face/tooth.png',   word: 'دندان' },
   ],
-  // Filled from IndexedDB at startup — words the parent has added themselves.
-  custom: [],
 };
+
+// Collections the parent creates ("Colors", "Family", ...) each get their own
+// entry in `categories`, keyed by their IndexedDB key — populated at startup
+// and after every create/delete. Animals and Face & body are the only
+// categories that ship with words already in them.
+const BUILTIN_CATEGORIES = ['animals', 'face'];
+const isBuiltinCategory = cat => BUILTIN_CATEGORIES.includes(cat);
 
 let currentCategory = 'animals';
 let currentIndex = 0;
@@ -295,19 +301,23 @@ let currentIndex = 0;
 const cardEl      = document.getElementById('card');
 const cardEmptyEl = document.getElementById('card-empty');
 const cardDelBtn  = document.getElementById('card-del');
+const cardAddBtn  = document.getElementById('card-add');
 const dispImg     = document.getElementById('disp-emoji');
 const dispWord    = document.getElementById('disp-word');
 const counterEl   = document.getElementById('counter');
 const dotsEl      = document.getElementById('dots');
 
 function updateDisplay(animate = true) {
-  const items = categories[currentCategory];
+  const items = categories[currentCategory] || [];
+  const isCustom = !isBuiltinCategory(currentCategory);
 
-  // "My Words" starts empty — show an invitation to add the first one
-  // instead of indexing into a deck that has nothing in it.
+  // A fresh collection starts empty — show an invitation to add the first
+  // word instead of indexing into a deck that has nothing in it.
   if (items.length === 0) {
     cardEl.hidden = true;
     cardEmptyEl.hidden = false;
+    cardDelBtn.hidden = true;
+    cardAddBtn.hidden = true;
     counterEl.textContent = '';
     dotsEl.innerHTML = '';
     return;
@@ -320,7 +330,8 @@ function updateDisplay(animate = true) {
   dispImg.alt = '';
   dispWord.textContent = item.word;
   counterEl.textContent = `${currentIndex + 1} / ${items.length}`;
-  cardDelBtn.hidden = currentCategory !== 'custom';
+  cardDelBtn.hidden = !isCustom;
+  cardAddBtn.hidden = !isCustom;
 
   dotsEl.innerHTML = '';
   items.forEach((_, i) => {
@@ -672,42 +683,160 @@ cardEl.addEventListener('touchend', e => {
 });
 
 // ============================================================
-//   CUSTOM CARDS  ("My Words")
+//   COLLECTIONS  (parent-created decks, e.g. "Colors", "Family")
 // ============================================================
-const addWordEl     = document.getElementById('add-word');
-const newWordInput  = document.getElementById('new-word');
-const addWordStatus = document.getElementById('add-word-status');
-const addWordBtn    = document.getElementById('add-word-btn');
-const cardPreviewEl = document.getElementById('card-preview');
-const cardPreviewImg  = document.getElementById('card-preview-img');
-const cardPreviewWord = document.getElementById('card-preview-word');
+let customCollections = [];   // [{ _key, name }], creation order
 
-async function loadCustomCards() {
-  const cards = await listCards();
-  categories.custom = cards.map(c => ({
-    img: c.imageUrl, word: c.word_fa, _key: c._key,
-  }));
-  // If "My Words" happens to be on screen (e.g. after a delete), reflect the change.
-  if (currentCategory === 'custom') {
-    currentIndex = Math.min(currentIndex, Math.max(0, categories.custom.length - 1));
+async function loadCollections() {
+  customCollections = await listCollections();
+  renderDeckTabs();
+}
+
+function renderDeckTabs() {
+  const tabsEl = document.getElementById('deck-tabs');
+  tabsEl.querySelectorAll('.deck-tab-custom').forEach(el => el.remove());
+
+  customCollections.forEach(coll => {
+    const btn = document.createElement('button');
+    btn.className = 'deck-tab deck-tab-custom';
+    btn.dataset.cat = coll._key;
+    btn.type = 'button';
+    if (coll._key === currentCategory) btn.classList.add('is-active');
+
+    const label = document.createElement('span');
+    label.textContent = coll.name;
+    label.className = 'deck-tab-label';
+    label.onclick = () => setCategory(coll._key, btn);
+
+    const del = document.createElement('span');
+    del.className = 'deck-tab-del';
+    del.textContent = '×';
+    del.title = `Remove "${coll.name}"`;
+    del.onclick = e => { e.stopPropagation(); removeCollection(coll._key); };
+
+    btn.append(label, del);
+    tabsEl.appendChild(btn);
+  });
+}
+
+async function removeCollection(key) {
+  await deleteCollection(key);
+  delete categories[key];
+  await loadCollections();
+
+  if (currentCategory === key) {
+    currentCategory = 'animals';
+    currentIndex = 0;
+    document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
+    document.querySelector('.deck-tab[data-cat="animals"]')?.classList.add('is-active');
     updateDisplay(false);
   }
 }
 
-function openAddWord() {
+function openNewCollection() {
+  const input  = document.getElementById('new-collection-name');
+  const status = document.getElementById('new-collection-status');
+  input.value = '';
+  status.textContent = '';
+  status.classList.remove('error');
+  document.getElementById('new-collection').classList.add('open');
+  input.focus();
+}
+
+function closeNewCollection() {
+  document.getElementById('new-collection').classList.remove('open');
+}
+
+async function submitNewCollection() {
+  const input  = document.getElementById('new-collection-name');
+  const status = document.getElementById('new-collection-status');
+  const name = input.value.trim();
+  if (!name) {
+    status.textContent = 'Give the collection a name.';
+    status.classList.add('error');
+    return;
+  }
+
+  const coll = await createCollection(name);
+  categories[coll._key] = [];
+  closeNewCollection();
+  await loadCollections();
+
+  // Land on the new, empty collection, ready for its first word.
+  currentCategory = coll._key;
+  currentIndex = 0;
+  document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
+  document.querySelector(`.deck-tab[data-cat="${coll._key}"]`)?.classList.add('is-active');
+  updateDisplay(false);
+}
+
+document.getElementById('new-collection-name')
+  .addEventListener('keydown', e => { if (e.key === 'Enter') submitNewCollection(); });
+
+// ============================================================
+//   CUSTOM CARDS  (words inside a collection)
+// ============================================================
+const addWordEl     = document.getElementById('add-word');
+const addWordTarget = document.getElementById('add-word-target');
+const newWordField  = document.getElementById('new-word-field');
+const newWordInput  = document.getElementById('new-word');
+const addWordStatus = document.getElementById('add-word-status');
+const generateActionsEl = document.getElementById('add-word-generate-actions');
+const confirmActionsEl  = document.getElementById('add-word-confirm-actions');
+const addWordBtn    = document.getElementById('add-word-btn');
+const confirmBtn    = document.getElementById('add-word-confirm-btn');
+const cardPreviewEl = document.getElementById('card-preview');
+const cardPreviewImg  = document.getElementById('card-preview-img');
+const cardPreviewWord = document.getElementById('card-preview-word');
+
+let addWordTargetKey = null;   // which collection the sheet is adding to
+let pendingCard = null;        // generated but not yet saved
+
+async function loadCardsFor(collectionId) {
+  const cards = await listCards(collectionId);
+  categories[collectionId] = cards.map(c => ({
+    img: c.imageUrl, word: c.word_fa, _key: c._key,
+  }));
+  if (currentCategory === collectionId) {
+    currentIndex = Math.min(currentIndex, Math.max(0, categories[collectionId].length - 1));
+    updateDisplay(false);
+  }
+}
+
+/** Opens the sheet targeting whichever collection is currently on screen. */
+function openAddWordForCurrent(event) {
+  event?.stopPropagation();
+  if (isBuiltinCategory(currentCategory)) return;
+  openAddWord(currentCategory);
+}
+
+function openAddWord(collectionId) {
+  addWordTargetKey = collectionId;
+  const coll = customCollections.find(c => c._key === collectionId);
+  addWordTarget.textContent = coll?.name || 'this collection';
+
   newWordInput.value = '';
+  newWordField.hidden = false;
   addWordStatus.textContent = '';
   addWordStatus.classList.remove('error');
   cardPreviewEl.hidden = true;
+  pendingCard = null;
+
+  generateActionsEl.hidden = false;
+  confirmActionsEl.hidden = true;
+  addWordBtn.disabled = false;
+
   addWordEl.classList.add('open');
   newWordInput.focus();
 }
 
 function closeAddWord() {
   addWordEl.classList.remove('open');
+  pendingCard = null;   // an un-confirmed generated card is simply discarded
 }
 
-async function submitNewWord() {
+/** Step 1: generate a translation + picture, but save nothing yet. */
+async function generateNewWord() {
   const word = newWordInput.value.trim();
   if (!word) {
     addWordStatus.textContent = 'Type a word first.';
@@ -720,9 +849,8 @@ async function submitNewWord() {
   addWordStatus.textContent = 'Translating and drawing a picture…';
   cardPreviewEl.hidden = true;
 
-  let card;
   try {
-    card = await createCard(word);
+    pendingCard = await generateCard(word);
   } catch (e) {
     addWordStatus.textContent = e.message;
     addWordStatus.classList.add('error');
@@ -730,37 +858,63 @@ async function submitNewWord() {
     return;
   }
 
-  cardPreviewImg.src = card.imageUrl;
-  cardPreviewWord.textContent = card.word_fa;
+  cardPreviewImg.src = pendingCard.imageUrl;
+  cardPreviewWord.textContent = pendingCard.word_fa;
   cardPreviewEl.hidden = false;
-  addWordStatus.textContent = 'Added!';
-  addWordBtn.disabled = false;
+  addWordStatus.textContent = 'Good to add?';
+  newWordField.hidden = true;
 
-  await loadCustomCards();
+  generateActionsEl.hidden = true;
+  confirmActionsEl.hidden = false;
+}
 
-  // Switch to "My Words" and land on the card just created.
+/** Back to the input, discarding whatever was just generated. */
+function retryNewWord() {
+  pendingCard = null;
+  newWordField.hidden = false;
+  cardPreviewEl.hidden = true;
+  addWordStatus.textContent = '';
+  generateActionsEl.hidden = false;
+  confirmActionsEl.hidden = true;
+  newWordInput.focus();
+}
+
+/** Step 2: the parent has seen the picture and word — now actually save it. */
+async function confirmNewWord() {
+  if (!pendingCard || !addWordTargetKey) return;
+
+  confirmBtn.disabled = true;
+  const saved = await saveCard({ ...pendingCard, collectionId: addWordTargetKey });
+  pendingCard = null;
+
+  const targetKey = addWordTargetKey;
+  await loadCardsFor(targetKey);
+
+  // Switch to that collection and land on the card just added.
+  currentCategory = targetKey;
+  currentIndex = categories[targetKey].length - 1;
   document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
-  document.getElementById('deck-custom').classList.add('is-active');
-  currentCategory = 'custom';
-  currentIndex = categories.custom.length - 1;
+  document.querySelector(`.deck-tab[data-cat="${targetKey}"]`)?.classList.add('is-active');
   updateDisplay(true);
 
-  setTimeout(() => { closeAddWord(); sayWord(); }, 700);
+  confirmBtn.disabled = false;
+  closeAddWord();
+  sayWord();
 }
 
 async function deleteCurrentCard(event) {
   event.stopPropagation();   // the card itself also opens sayWord() on click
-  if (currentCategory !== 'custom') return;
-  const item = categories.custom[currentIndex];
+  if (isBuiltinCategory(currentCategory)) return;
+  const item = categories[currentCategory]?.[currentIndex];
   if (!item) return;
 
   await deleteCard(item._key);
-  await loadCustomCards();
-  currentIndex = Math.min(currentIndex, Math.max(0, categories.custom.length - 1));
+  await loadCardsFor(currentCategory);
+  currentIndex = Math.min(currentIndex, Math.max(0, categories[currentCategory].length - 1));
   updateDisplay(true);
 }
 
-newWordInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitNewWord(); });
+newWordInput.addEventListener('keydown', e => { if (e.key === 'Enter') generateNewWord(); });
 
 // ============================================================
 //   EXPOSE + INIT
@@ -769,7 +923,9 @@ Object.assign(window, {
   setMode, setCategory, navigate, sayWord, tapBluey,
   startStory, togglePause, leaveStory,
   openSettings, closeSettings, clearAudioCache,
-  openAddWord, closeAddWord, submitNewWord, deleteCurrentCard,
+  openNewCollection, closeNewCollection, submitNewCollection,
+  openAddWordForCurrent, closeAddWord, generateNewWord, retryNewWord, confirmNewWord,
+  deleteCurrentCard,
   __lipSync: lipSync,
 });
 
@@ -778,4 +934,8 @@ renderLengths();
 renderHistory();
 updateDisplay(false);
 voicesReady = refreshVoices();
-loadCustomCards();
+
+// Load every existing collection's cards before the deck tabs are usable.
+loadCollections().then(() => {
+  return Promise.all(customCollections.map(c => loadCardsFor(c._key)));
+});

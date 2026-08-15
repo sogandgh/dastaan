@@ -27,21 +27,23 @@ export function setVoice(voiceId) {
 }
 
 // ── IndexedDB clip cache ────────────────────────────────────────
-const DB_NAME = 'bluey-tts';
-const STORE   = 'clips';
-const STORIES = 'stories';
-const CARDS   = 'cards';
+const DB_NAME     = 'bluey-tts';
+const STORE       = 'clips';
+const STORIES     = 'stories';
+const CARDS       = 'cards';
+const COLLECTIONS = 'collections';
 let dbPromise = null;
 
 function openDB() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 3);
+    const req = indexedDB.open(DB_NAME, 4);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE))   db.createObjectStore(STORE);
-      if (!db.objectStoreNames.contains(STORIES)) db.createObjectStore(STORIES);
-      if (!db.objectStoreNames.contains(CARDS))   db.createObjectStore(CARDS);
+      if (!db.objectStoreNames.contains(STORE))       db.createObjectStore(STORE);
+      if (!db.objectStoreNames.contains(STORIES))     db.createObjectStore(STORIES);
+      if (!db.objectStoreNames.contains(CARDS))       db.createObjectStore(CARDS);
+      if (!db.objectStoreNames.contains(COLLECTIONS)) db.createObjectStore(COLLECTIONS);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => reject(req.error);
@@ -251,13 +253,56 @@ export async function deleteStory(key) {
   }
 }
 
+// ── Custom collections ──────────────────────────────────────────
+/** A named deck the parent creates, e.g. "Colors" or "Family". Starts empty. */
+export async function createCollection(name) {
+  const record = { name: name.trim(), createdAt: Date.now() };
+  const key = `coll-${record.createdAt}-${Math.random().toString(36).slice(2, 7)}`;
+  await idbSet(COLLECTIONS, key, record);
+  return { ...record, _key: key };
+}
+
+/** Collections in the order they were created. */
+export async function listCollections() {
+  try {
+    const db = await openDB();
+    const store = db.transaction(COLLECTIONS, 'readonly').objectStore(COLLECTIONS);
+
+    const [values, keys] = await Promise.all([getAllFrom(store), getAllKeysFrom(store)]);
+
+    return values
+      .map((r, i) => ({ ...r, _key: keys[i] }))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  } catch {
+    return [];
+  }
+}
+
+/** Delete a collection and every card in it. */
+export async function deleteCollection(key) {
+  try {
+    const cards = await listCards(key);
+    for (const c of cards) await deleteCard(c._key);
+
+    const db = await openDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(COLLECTIONS, 'readwrite');
+      tx.objectStore(COLLECTIONS).delete(key);
+      tx.oncomplete = resolve;
+      tx.onerror    = () => reject(tx.error);
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
 // ── Custom flashcards ───────────────────────────────────────────
 /**
- * Create a custom flashcard: the server translates the word and generates a
- * picture for it; this stores the result (as a real Blob, not a giant base64
- * string) and returns it with an object URL ready to display.
+ * Ask the server to translate a word and draw a picture for it. Returns the
+ * result for the parent to preview — nothing is saved until saveCard() is
+ * called, so a card the parent doesn't like never touches storage.
  */
-export async function createCard(word) {
+export async function generateCard(word) {
   const res = await fetch('/api/card', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -267,39 +312,47 @@ export async function createCard(word) {
 
   const { word_fa, word_en, image } = await res.json();
   const imageBlob = await (await fetch(image)).blob();   // data: URL -> Blob
+  return { word_fa, word_en, imageBlob, imageUrl: URL.createObjectURL(imageBlob) };
+}
 
-  const record = { word_fa, word_en, imageBlob, createdAt: Date.now() };
+/** Persist a card a parent has confirmed, into the given collection. */
+export async function saveCard({ word_fa, word_en, imageBlob, collectionId }) {
+  const record = { word_fa, word_en, imageBlob, collectionId, createdAt: Date.now() };
   const key = `card-${record.createdAt}-${Math.random().toString(36).slice(2, 7)}`;
   await idbSet(CARDS, key, record);
-
   return { ...record, _key: key, imageUrl: URL.createObjectURL(imageBlob) };
 }
 
-/** Custom cards in the order they were added. */
-export async function listCards() {
+/** Cards in one collection, in the order they were added. */
+export async function listCards(collectionId) {
   try {
     const db = await openDB();
     const store = db.transaction(CARDS, 'readonly').objectStore(CARDS);
 
-    const [values, keys] = await Promise.all([
-      new Promise((resolve, reject) => {
-        const r = store.getAll();
-        r.onsuccess = () => resolve(r.result || []);
-        r.onerror   = () => reject(r.error);
-      }),
-      new Promise((resolve, reject) => {
-        const r = store.getAllKeys();
-        r.onsuccess = () => resolve(r.result || []);
-        r.onerror   = () => reject(r.error);
-      }),
-    ]);
+    const [values, keys] = await Promise.all([getAllFrom(store), getAllKeysFrom(store)]);
 
     return values
       .map((r, i) => ({ ...r, _key: keys[i], imageUrl: URL.createObjectURL(r.imageBlob) }))
+      .filter(r => r.collectionId === collectionId)
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   } catch {
     return [];
   }
+}
+
+function getAllFrom(store) {
+  return new Promise((resolve, reject) => {
+    const r = store.getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror   = () => reject(r.error);
+  });
+}
+function getAllKeysFrom(store) {
+  return new Promise((resolve, reject) => {
+    const r = store.getAllKeys();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror   = () => reject(r.error);
+  });
 }
 
 /** Forget one custom card. */

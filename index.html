@@ -137,12 +137,12 @@
       </div>
 
       <div class="deck-row">
-        <div class="deck-tabs" role="tablist" aria-label="Deck">
-          <button class="deck-tab is-active" id="deck-animals" onclick="setCategory('animals', this)">Animals</button>
-          <button class="deck-tab" id="deck-face" onclick="setCategory('face', this)">Face &amp; body</button>
-          <button class="deck-tab" id="deck-custom" onclick="setCategory('custom', this)">My Words</button>
+        <div class="deck-tabs" role="tablist" aria-label="Deck" id="deck-tabs">
+          <button class="deck-tab is-active" data-cat="animals" onclick="setCategory('animals', this)">Animals</button>
+          <button class="deck-tab" data-cat="face" onclick="setCategory('face', this)">Face &amp; body</button>
+          <!-- Collections the parent has created are inserted here -->
         </div>
-        <button class="icon-btn add-word-btn" onclick="openAddWord()" aria-label="Add a word">
+        <button class="icon-btn add-word-btn" onclick="openNewCollection()" aria-label="Add a collection" title="Add a collection">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
                stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
@@ -150,6 +150,10 @@
 
       <div class="card" id="card" onclick="sayWord()" role="button" tabindex="0"
            aria-label="Hear this word">
+        <button class="card-add" id="card-add" onclick="openAddWordForCurrent(event)" aria-label="Add another word" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
         <button class="card-del" id="card-del" onclick="deleteCurrentCard(event)" aria-label="Remove this word" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -164,8 +168,8 @@
         </div>
       </div>
 
-      <!-- Shown instead of the card when "My Words" has nothing in it yet -->
-      <div class="card card-empty" id="card-empty" onclick="openAddWord()" role="button" tabindex="0" hidden>
+      <!-- Shown instead of the card when a collection has nothing in it yet -->
+      <div class="card card-empty" id="card-empty" onclick="openAddWordForCurrent(event)" role="button" tabindex="0" hidden>
         <span class="card-empty-icon">＋</span>
         <p>Add your first word</p>
         <p class="card-empty-sub">Any word, in English or Farsi</p>
@@ -236,14 +240,16 @@
 
   </main>
 
-  <!-- ── Add a word (own card: translated, pictured, and spoken) ── -->
+  <!-- ── Add a word (own card: translated, pictured, and spoken) ──
+       Two states: type a word and generate (nothing saved yet), then
+       preview and either add it for real or try a different word. ── -->
   <div class="sheet-overlay" id="add-word">
     <div class="sheet">
       <h2>Add a word</h2>
-      <p class="note">Type any word, in English or Farsi. Bluey will translate it, draw a
-        picture for it, and learn to say it.</p>
+      <p class="note">Adding to <strong id="add-word-target"></strong>. Type any word, in
+        English or Farsi — Bluey will translate it, draw a picture, and learn to say it.</p>
 
-      <label class="field">
+      <label class="field" id="new-word-field">
         <span class="field-label">Word</span>
         <input type="text" id="new-word" dir="auto" autocomplete="off"
                placeholder="apple, or سیب" maxlength="60">
@@ -256,9 +262,35 @@
 
       <p class="note" id="add-word-status"></p>
 
-      <div class="sheet-actions">
+      <div class="sheet-actions" id="add-word-generate-actions">
         <button class="ghost-btn" onclick="closeAddWord()">Cancel</button>
-        <button class="start-btn" id="add-word-btn" onclick="submitNewWord()">Create card</button>
+        <button class="start-btn" id="add-word-btn" onclick="generateNewWord()">Create card</button>
+      </div>
+
+      <div class="sheet-actions" id="add-word-confirm-actions" hidden>
+        <button class="ghost-btn" onclick="retryNewWord()">Try again</button>
+        <button class="start-btn" id="add-word-confirm-btn" onclick="confirmNewWord()">Add this card</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Create a new collection (e.g. "Colors", "Family") ── -->
+  <div class="sheet-overlay" id="new-collection">
+    <div class="sheet">
+      <h2>New collection</h2>
+      <p class="note">Give it a name. You'll add words to it next.</p>
+
+      <label class="field">
+        <span class="field-label">Collection name</span>
+        <input type="text" id="new-collection-name" dir="auto" autocomplete="off"
+               placeholder="Colors" maxlength="30">
+      </label>
+
+      <p class="note" id="new-collection-status"></p>
+
+      <div class="sheet-actions">
+        <button class="ghost-btn" onclick="closeNewCollection()">Cancel</button>
+        <button class="start-btn" onclick="submitNewCollection()">Create collection</button>
       </div>
     </div>
   </div>

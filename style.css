@@ -365,6 +365,28 @@ body[data-mode="play"]  #panel-play { display: flex; }
   box-shadow: 0 6px 16px -6px var(--blue);
 }
 
+/* A parent-created collection's tab carries its own remove control, so a
+   collection can be deleted without opening it first. */
+.deck-tab-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+}
+.deck-tab-del {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  line-height: 1;
+  opacity: 0.55;
+  transition: opacity 150ms, background 150ms;
+}
+.deck-tab-del:hover { opacity: 1; background: rgba(255, 255, 255, 0.35); }
+.deck-tab.is-active .deck-tab-del { color: #fff; }
+
 .card {
   position: relative;
   width: 100%;
@@ -397,6 +419,26 @@ body[data-mode="play"]  #panel-play { display: flex; }
 }
 .card-del svg { width: 13px; height: 13px; }
 .card-del:hover { color: var(--coral); background: #FFF3EF; transform: scale(1.08); }
+
+/* Add-another-word, mirrored to the opposite corner from delete. */
+.card-add[hidden] { display: none; }
+.card-add {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--ink-faint);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: var(--shadow-sm);
+  transition: color 180ms, background 180ms, transform 180ms;
+}
+.card-add svg { width: 14px; height: 14px; }
+.card-add:hover { color: var(--blue); background: #F0F7FE; transform: scale(1.08); }
 
 /* "My Words" with nothing in it yet — an invitation, not a blank card. */
 .card-empty[hidden] { display: none; }
@@ -574,6 +616,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   box-shadow: var(--shadow-md);
 }
 
+.field[hidden] { display: none; }
 .field { display: block; }
 .field-label {
   display: block;
@@ -825,6 +868,9 @@ body.preparing .stop-btn { display: none; }
   margin-bottom: 6px;
 }
 .sheet .field { margin-top: 18px; }
+/* Author display rules beat the UA [hidden] one at equal specificity, so any
+   element toggled with the hidden attribute needs this made explicit. */
+.sheet-actions[hidden] { display: none; }
 .sheet-actions {
   display: flex;
   gap: 10px;
