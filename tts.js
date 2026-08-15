@@ -34,16 +34,17 @@ export function setVoice(character, voiceId) {
 // ── IndexedDB clip cache ────────────────────────────────────────
 const DB_NAME = 'bluey-tts';
 const STORE   = 'clips';
+const STORIES = 'stories';
 let dbPromise = null;
 
 function openDB() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, 2);
     req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) {
-        req.result.createObjectStore(STORE);
-      }
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE))   db.createObjectStore(STORE);
+      if (!db.objectStoreNames.contains(STORIES)) db.createObjectStore(STORIES);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => reject(req.error);
@@ -51,11 +52,11 @@ function openDB() {
   return dbPromise;
 }
 
-async function cacheGet(key) {
+async function idbGet(storeName, key) {
   try {
     const db = await openDB();
     return await new Promise((resolve, reject) => {
-      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+      const req = db.transaction(storeName, 'readonly').objectStore(storeName).get(key);
       req.onsuccess = () => resolve(req.result || null);
       req.onerror   = () => reject(req.error);
     });
@@ -64,12 +65,12 @@ async function cacheGet(key) {
   }
 }
 
-async function cacheSet(key, blob) {
+async function idbSet(storeName, key, value) {
   try {
     const db = await openDB();
     await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(blob, key);
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).put(value, key);
       tx.oncomplete = resolve;
       tx.onerror    = () => reject(tx.error);
     });
@@ -77,6 +78,9 @@ async function cacheSet(key, blob) {
     /* cache writes are best effort */
   }
 }
+
+const cacheGet = key       => idbGet(STORE, key);
+const cacheSet = (key, blob) => idbSet(STORE, key, blob);
 
 export async function clearCache() {
   const db = await openDB();
@@ -146,6 +150,45 @@ export async function prefetch(text, voiceId) {
     await synthesize(text, voiceId);
   } catch {
     /* prefetch failures are silent by design */
+  }
+}
+
+// ── Stories ─────────────────────────────────────────────────────
+/**
+ * Ask for a story. The same request always returns the same story: small
+ * children want *that* story again, not a new one, and a cached story also hits
+ * the cached audio, so a repeat costs nothing and plays instantly.
+ */
+export async function getStory(prompt) {
+  const key = prompt.trim().toLowerCase().replace(/\s+/g, ' ');
+
+  const cached = await idbGet(STORIES, key);
+  if (cached) return { story: cached, fromCache: true };
+
+  const res = await fetch('/api/story', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  });
+  if (!res.ok) throw new Error(await describeError(res));
+
+  const { story } = await res.json();
+  await idbSet(STORIES, key, story);
+  return { story, fromCache: false };
+}
+
+/** Every story asked for so far, newest last — the child's own library. */
+export async function listStories() {
+  try {
+    const db = await openDB();
+    return await new Promise((resolve, reject) => {
+      const store = db.transaction(STORIES, 'readonly').objectStore(STORIES);
+      const keys  = store.getAllKeys();
+      keys.onsuccess = () => resolve(keys.result || []);
+      keys.onerror   = () => reject(keys.error);
+    });
+  } catch {
+    return [];
   }
 }
 

@@ -4,6 +4,7 @@
 
 import {
   synthesize, prefetch, listVoices, clearCache, getVoices, setVoice,
+  getStory, listStories,
 } from './tts.js';
 
 const blueyEl = document.getElementById('bluey');
@@ -375,6 +376,86 @@ window.openSettings    = openSettings;
 window.closeSettings   = closeSettings;
 window.clearAudioCache = clearAudioCache;
 
+// ============================================================
+//   STORY TIME
+// ============================================================
+const storyEl     = document.getElementById('story');
+const storyPrompt = document.getElementById('story-prompt');
+const storyStatus = document.getElementById('story-status');
+const storyTextEl = document.getElementById('story-text');
+const storyGoBtn  = document.getElementById('story-go');
+const storyLibEl  = document.getElementById('story-library');
+
+function openStory() {
+  storyEl.classList.add('open');
+  storyPrompt.focus();
+  renderLibrary();
+}
+
+function closeStory() {
+  storyEl.classList.remove('open');
+}
+
+async function renderLibrary() {
+  const prompts = await listStories();
+  storyLibEl.innerHTML = '';
+  if (!prompts.length) return;
+
+  const title = document.createElement('p');
+  title.className = 'story-library-title';
+  title.textContent = 'Told before (free to hear again)';
+  storyLibEl.appendChild(title);
+
+  prompts.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'story-chip';
+    b.dir = 'auto';
+    b.textContent = p;
+    b.onclick = () => { storyPrompt.value = p; tellStory(); };
+    storyLibEl.appendChild(b);
+  });
+}
+
+async function tellStory() {
+  const prompt = storyPrompt.value.trim();
+  if (!prompt) {
+    storyStatus.textContent = 'Ask for a story first.';
+    storyStatus.classList.add('error');
+    return;
+  }
+
+  storyGoBtn.disabled = true;
+  storyStatus.classList.remove('error');
+  storyStatus.textContent = 'Writing the story…';
+  storyTextEl.textContent = '';
+
+  let story, fromCache;
+  try {
+    ({ story, fromCache } = await getStory(prompt));
+  } catch (e) {
+    storyStatus.textContent = e.message;
+    storyStatus.classList.add('error');
+    storyGoBtn.disabled = false;
+    return;
+  }
+
+  storyTextEl.textContent = story;
+  storyStatus.textContent = fromCache ? 'From your library.' : 'Bluey is reading it…';
+
+  await speakText(story);
+  storyStatus.textContent = '';
+  storyGoBtn.disabled = false;
+  renderLibrary();
+}
+
+storyPrompt.addEventListener('keydown', e => {
+  if (e.key === 'Enter') tellStory();
+});
+
+window.openStory  = openStory;
+window.closeStory = closeStory;
+window.tellStory  = tellStory;
+
 // Load voices on startup so the first tap already has a voice to speak with.
 // speakText awaits this promise rather than racing it.
 voicesReady = refreshVoices();
@@ -401,6 +482,10 @@ function spawnSparkles() {
 //   KEYBOARD & SWIPE
 // ============================================================
 document.addEventListener('keydown', e => {
+  // Don't hijack keys while a grown-up is typing a story request.
+  const t = e.target;
+  if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
+
   if (e.key === 'ArrowLeft')               navigate(-1);
   if (e.key === 'ArrowRight')              navigate(1);
   if (e.key === ' ' || e.key === 'Enter')  sayWord();

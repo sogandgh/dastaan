@@ -130,6 +130,33 @@
 
   </div>
 
+  <!-- ── Story time ── -->
+  <button class="story-btn" onclick="openStory()" title="Story time">📖</button>
+
+  <div class="story-overlay" id="story">
+    <div class="story-panel">
+      <h2>Story time</h2>
+      <p class="hint">Ask in English or Persian — the story is always in Persian.</p>
+
+      <!-- dir="auto" flips the field to RTL as soon as Persian is typed -->
+      <input type="text" id="story-prompt" dir="auto"
+             placeholder="a story about a cat who loses her shoe"
+             autocomplete="off">
+
+      <div class="story-actions">
+        <button class="settings-action" onclick="tellStory()" id="story-go">Tell me a story</button>
+        <button class="settings-secondary" onclick="closeStory()">Close</button>
+      </div>
+
+      <p class="settings-status" id="story-status"></p>
+
+      <!-- The story itself, so a grown-up can read along -->
+      <div class="story-text" id="story-text" dir="rtl" lang="fa"></div>
+
+      <div class="story-library" id="story-library"></div>
+    </div>
+  </div>
+
   <!-- ── Settings: API key + voices, stored in this browser only ── -->
   <button class="settings-btn" onclick="openSettings()" title="Voice settings">⚙️</button>
 

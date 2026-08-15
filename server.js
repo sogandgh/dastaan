@@ -13,9 +13,11 @@ import { createServer } from 'node:http';
 import { readFile }     from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 
-const PORT     = process.env.PORT || 8000;
-const API_KEY  = process.env.ELEVENLABS_API_KEY;
-const ROOT     = process.cwd();
+const PORT        = process.env.PORT || 8000;
+const API_KEY     = process.env.ELEVENLABS_API_KEY;
+const OPENAI_KEY  = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-mini';
+const ROOT        = process.cwd();
 
 const API_ROOT = 'https://api.elevenlabs.io';
 const MODEL_ID = 'eleven_v3';     // the only model that supports Persian (fas)
@@ -112,6 +114,76 @@ async function handleTts(req, res) {
   res.end(audio);
 }
 
+/**
+ * Story generation. The grown-up may type the request in English or Persian —
+ * the story always comes back in Persian, because that is the point of the app.
+ */
+const STORY_SYSTEM_PROMPT = `You write very short bedtime stories in Persian (Farsi) for a 3-year-old.
+
+The request may be written in English or in Persian. Either way, always write the story in Persian.
+
+Rules:
+- Reply with ONLY the story text in Persian script. No title, no transliteration, no English, no markdown, no quotation marks around the whole story.
+- About 120-140 words — roughly one minute read aloud.
+- Use simple words a 3-year-old knows. Short sentences.
+- Warm, gentle and happy. Never scary, sad or violent. Always end well.
+- Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
+- If the child is named in the request, write the name لی‌لی.`;
+
+async function handleStory(req, res) {
+  if (!OPENAI_KEY) {
+    return sendJson(res, 500, {
+      error: 'OPENAI_API_KEY is not set. Start the server with it to use stories.',
+    });
+  }
+
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+
+  let prompt;
+  try {
+    ({ prompt } = JSON.parse(Buffer.concat(chunks).toString()));
+  } catch {
+    return sendJson(res, 400, { error: 'Malformed request body.' });
+  }
+  if (!prompt || !prompt.trim()) {
+    return sendJson(res, 400, { error: 'Ask for a story first.' });
+  }
+
+  const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      // Story writing needs no deliberation; this keeps it a few seconds rather
+      // than tens of seconds, which matters when a small child is waiting.
+      reasoning_effort: 'minimal',
+      messages: [
+        { role: 'system', content: STORY_SYSTEM_PROMPT },
+        { role: 'user',   content: prompt.trim().slice(0, 500) },
+      ],
+    }),
+  });
+
+  if (!upstream.ok) {
+    let detail = `OpenAI error ${upstream.status}.`;
+    try {
+      const body = await upstream.json();
+      detail = body?.error?.message || detail;
+    } catch { /* non-JSON error body */ }
+    return sendJson(res, upstream.status, { error: detail });
+  }
+
+  const data  = await upstream.json();
+  const story = data.choices?.[0]?.message?.content?.trim();
+  if (!story) return sendJson(res, 502, { error: 'No story came back. Try again.' });
+
+  sendJson(res, 200, { story });
+}
+
 async function handleStatic(req, res, pathname) {
   // normalize() collapses any ../ so requests cannot escape the project directory.
   const rel  = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
@@ -138,6 +210,7 @@ createServer(async (req, res) => {
   try {
     if (pathname === '/api/voices' && req.method === 'GET')  return await handleVoices(res);
     if (pathname === '/api/tts'    && req.method === 'POST') return await handleTts(req, res);
+    if (pathname === '/api/story'  && req.method === 'POST') return await handleStory(req, res);
     return await handleStatic(req, res, pathname);
   } catch (e) {
     sendJson(res, 500, { error: e.message });

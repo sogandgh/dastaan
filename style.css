@@ -611,3 +611,126 @@ body {
   opacity: 1;
   transform: translate(-50%, 0);
 }
+
+/* ============================================================
+   STORY TIME
+============================================================ */
+.story-btn {
+  position: fixed;
+  top: 14px;
+  right: 68px;
+  z-index: 1000;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.story-btn:hover { transform: scale(1.1); }
+
+.story-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 20px;
+  overflow-y: auto;
+}
+.story-overlay.open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.story-panel {
+  width: 100%;
+  max-width: 460px;
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  font-family: 'Nunito', sans-serif;
+}
+.story-panel h2 {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  color: #2b4a7d;
+}
+.story-panel input {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 2px solid #d8e2f0;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-family: 'Nunito', 'Vazirmatn', sans-serif;
+}
+.story-panel input:focus {
+  outline: none;
+  border-color: #4a90d9;
+}
+
+.story-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.story-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The story itself — Persian, so right-to-left and roomy line height */
+.story-text:empty { display: none; }
+.story-text {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f6f9fd;
+  border-radius: 12px;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 1.05rem;
+  line-height: 2;
+  color: #33334d;
+  max-height: 38vh;
+  overflow-y: auto;
+}
+
+.story-library:empty { display: none; }
+.story-library { margin-top: 16px; }
+.story-library-title {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa5b4;
+}
+.story-chip {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0 6px 6px 0;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #4a5b70;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.story-chip:hover { background: #dfe7f1; }
+
+@media (max-width: 640px) {
+  .story-btn { right: 62px; }
+  .story-panel { padding: 18px; }
+  .story-text { font-size: 1rem; max-height: 34vh; }
+}
