@@ -174,8 +174,8 @@ export async function getStory({ prompt = '', focus = '', minutes = 1, label = '
   });
   if (!res.ok) throw new Error(await describeError(res));
 
-  const { id, scenes } = await res.json();
-  return { id, scenes: normalizeScenes({ scenes }) };
+  const { id, characters, scenes } = await res.json();
+  return { id, characters, scenes: normalizeScenes({ scenes }) };
 }
 
 /**

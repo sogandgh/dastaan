@@ -666,9 +666,9 @@ async function startStory() {
   startBtn.textContent = 'Cancel';
   storyController = new AbortController();
 
-  let scenes;
+  let scenes, characters;
   try {
-    ({ scenes } = await getStory({
+    ({ scenes, characters } = await getStory({
       prompt:  custom,
       focus:   selectedTheme?.focus || '',
       minutes: selectedMinutes,
@@ -682,6 +682,12 @@ async function startStory() {
     setupNote.classList.toggle('error', !cancelled);
     return;
   }
+
+  // What OpenAI actually produced, for inspecting in devtools — the
+  // character sheet every scene's picture is built from, and each scene's
+  // narration text alongside its own picture prompt.
+  console.log('[OpenAI] story characters:', characters);
+  scenes.forEach((s, i) => console.log(`[OpenAI] scene ${i}:`, { text: s.text, image: s.image }));
 
   resetStoryForm();
   setupNote.textContent = '';
@@ -1151,6 +1157,11 @@ async function generateNewWord() {
     addWordBtn.disabled = false;
     return;
   }
+
+  // The image itself is a data: URL (can be 1MB+ of base64) — not worth
+  // dumping whole into the console, just confirming one came back.
+  console.log('[OpenAI] card translation:', { word_fa: pendingCard.word_fa, word_en: pendingCard.word_en });
+  console.log('[OpenAI] card image:', pendingCard.imageUrl ? `${pendingCard.imageUrl.length} chars` : 'none');
 
   cardPreviewImg.src = pendingCard.imageUrl;
   cardPreviewWord.textContent = pendingCard.word_fa;

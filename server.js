@@ -284,7 +284,7 @@ async function handleStory(req, res) {
     String(prompt).trim().toLowerCase().replace(/\s+/g, ' '),
   ].join('|');
   const existing = (await loadStories()).stories.find(s => s.key === key);
-  if (existing) return sendJson(res, 200, { id: existing.id, scenes: existing.scenes });
+  if (existing) return sendJson(res, 200, { id: existing.id, characters: existing.characters, scenes: existing.scenes });
 
   // A story now takes 20-40s (text, then a picture per scene) — long enough
   // that a parent cancelling mid-wait is normal, not an edge case. Rather
@@ -385,12 +385,13 @@ async function handleStory(req, res) {
       id, key,
       label: String(label).trim() || String(prompt).trim() || 'A story',
       minutes,
+      characters,
       scenes: savedScenes,
       savedAt: Date.now(),
     });
   });
 
-  sendJson(res, 200, { id, scenes: savedScenes });
+  sendJson(res, 200, { id, characters, scenes: savedScenes });
 }
 
 async function handleStoriesGet(res) {
