@@ -10,7 +10,7 @@
  */
 
 import { createServer } from 'node:http';
-import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
+import { readFile, writeFile, appendFile, mkdir, unlink } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 
 const PORT        = process.env.PORT || 8000;
@@ -102,16 +102,39 @@ async function fetchWithTimeout(url, options = {}, ms = 20000, externalSignal) {
   }
 }
 
+// ── Error handling: technical detail goes in a log file on the server,
+// never to a family member's screen. Whatever actually went wrong —
+// ElevenLabs rejected the key, OpenAI is down, a quota ran out — the
+// person looking at the app just needs "the voice isn't working right
+// now," not the provider's own error text. One generic line per provider,
+// always; the log is where the real answer lives.
+const ELEVENLABS_FRIENDLY_ERROR = "Bluey's voice isn't working right now. Try again in a bit.";
+const OPENAI_FRIENDLY_ERROR     = "Bluey couldn't do that right now. Try again in a bit.";
+const ERROR_LOG_FILE = join(DATA_DIR, 'errors.log');
+
+async function logServerError(provider, detail) {
+  const line = `[${new Date().toISOString()}] ${provider}: ${detail}`;
+  console.error(line);
+  try {
+    await mkdir(DATA_DIR, { recursive: true });
+    await appendFile(ERROR_LOG_FILE, line + '\n');
+  } catch { /* logging must never be the reason a request fails */ }
+}
+
+/** Log the real detail, send only the generic message for that provider. */
+async function sendProviderError(res, status, provider, detail) {
+  await logServerError(provider, detail);
+  sendJson(res, status, { error: provider === 'elevenlabs' ? ELEVENLABS_FRIENDLY_ERROR : OPENAI_FRIENDLY_ERROR });
+}
+
 function requireKey(res) {
   if (API_KEY) return true;
-  sendJson(res, 500, {
-    error: 'ELEVENLABS_API_KEY is not set. Start the server with ' +
-           'ELEVENLABS_API_KEY=sk_… node server.js',
-  });
+  logServerError('elevenlabs', 'ELEVENLABS_API_KEY is not set');
+  sendJson(res, 500, { error: ELEVENLABS_FRIENDLY_ERROR });
   return false;
 }
 
-/** Turn an ElevenLabs error response into something worth showing a user. */
+/** Turn an ElevenLabs error response into something worth logging. */
 async function upstreamError(upstream) {
   if (upstream.status === 401) return 'ElevenLabs rejected the API key in ELEVENLABS_API_KEY.';
   if (upstream.status === 429) return 'ElevenLabs rate limit or quota reached.';
@@ -129,7 +152,7 @@ async function handleVoices(res) {
   const upstream = await fetchWithTimeout(`${API_ROOT}/v2/voices?page_size=100`, {
     headers: { 'xi-api-key': API_KEY },
   }, 10000);
-  if (!upstream.ok) return sendJson(res, upstream.status, { error: await upstreamError(upstream) });
+  if (!upstream.ok) return sendProviderError(res, upstream.status, 'elevenlabs', await upstreamError(upstream));
 
   const data = await upstream.json();
   sendJson(res, 200, {
@@ -165,7 +188,7 @@ async function handleTts(req, res) {
     },
     30000
   );
-  if (!upstream.ok) return sendJson(res, upstream.status, { error: await upstreamError(upstream) });
+  if (!upstream.ok) return sendProviderError(res, upstream.status, 'elevenlabs', await upstreamError(upstream));
 
   const audio = Buffer.from(await upstream.arrayBuffer());
   res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': audio.length });
@@ -250,9 +273,7 @@ function buildUserPrompt({ prompt, focus }) {
 
 async function handleStory(req, res) {
   if (!OPENAI_KEY) {
-    return sendJson(res, 500, {
-      error: 'OPENAI_API_KEY is not set. Start the server with it to use stories.',
-    });
+    return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set');
   }
 
   const chunks = [];
@@ -322,7 +343,7 @@ async function handleStory(req, res) {
       const body = await upstream.json();
       detail = body?.error?.message || detail;
     } catch { /* non-JSON error body */ }
-    return sendJson(res, upstream.status, { error: detail });
+    return sendProviderError(res, upstream.status, 'openai', detail);
   }
 
   const data = await upstream.json();
@@ -336,7 +357,7 @@ async function handleStory(req, res) {
     scenes = null;
   }
   if (!Array.isArray(scenes) || scenes.length === 0 || !scenes.every(s => s?.text)) {
-    return sendJson(res, 502, { error: 'No story came back. Try again.' });
+    return sendProviderError(res, 502, 'openai', `Malformed scenes JSON: ${jsonText.slice(0, 500)}`);
   }
 
   // One illustration per scene, all in parallel — this is what makes the
@@ -451,7 +472,10 @@ async function translateWord(word) {
       ],
     }),
   }, 20000);
-  if (!upstream.ok) throw new Error(await openaiErrorMessage(upstream));
+  if (!upstream.ok) {
+    await logServerError('openai', await openaiErrorMessage(upstream));
+    throw new Error(OPENAI_FRIENDLY_ERROR);
+  }
 
   const data = await upstream.json();
   const raw  = data.choices?.[0]?.message?.content?.trim() || '';
@@ -481,11 +505,17 @@ async function generateCardImage(wordEn) {
       n: 1,
     }),
   }, 45000);
-  if (!upstream.ok) throw new Error(await openaiErrorMessage(upstream));
+  if (!upstream.ok) {
+    await logServerError('openai', await openaiErrorMessage(upstream));
+    throw new Error(OPENAI_FRIENDLY_ERROR);
+  }
 
   const data = await upstream.json();
   const b64  = data.data?.[0]?.b64_json;
-  if (!b64) throw new Error('No image came back. Try a different word.');
+  if (!b64) {
+    await logServerError('openai', 'Image generation returned no b64_json');
+    throw new Error(OPENAI_FRIENDLY_ERROR);
+  }
   return b64;
 }
 
@@ -511,11 +541,17 @@ async function generateSceneImage(sceneEn, signal) {
       n: 1,
     }),
   }, 45000, signal);
-  if (!upstream.ok) throw new Error(await openaiErrorMessage(upstream));
+  if (!upstream.ok) {
+    await logServerError('openai', await openaiErrorMessage(upstream));
+    throw new Error(OPENAI_FRIENDLY_ERROR);
+  }
 
   const data = await upstream.json();
   const b64  = data.data?.[0]?.b64_json;
-  if (!b64) throw new Error('No image came back.');
+  if (!b64) {
+    await logServerError('openai', 'Scene image generation returned no b64_json');
+    throw new Error(OPENAI_FRIENDLY_ERROR);
+  }
   return b64;
 }
 
@@ -530,9 +566,7 @@ async function openaiErrorMessage(upstream) {
 
 async function handleCard(req, res) {
   if (!OPENAI_KEY) {
-    return sendJson(res, 500, {
-      error: 'OPENAI_API_KEY is not set. Start the server with it to add custom cards.',
-    });
+    return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set');
   }
 
   const chunks = [];
