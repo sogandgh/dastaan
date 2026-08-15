@@ -334,8 +334,14 @@
 
       <p class="note" id="settings-status"></p>
 
+      <!-- Hidden until copyDiagnostics() can't use the clipboard (this app
+           isn't on https, so that API isn't always available) — then it
+           shows the report pre-selected, ready to copy by hand instead. -->
+      <textarea class="diagnostics-output" id="diagnostics-output" readonly hidden></textarea>
+
       <div class="sheet-actions">
         <button class="ghost-btn" onclick="clearAudioCache()">Clear saved audio</button>
+        <button class="ghost-btn" onclick="copyDiagnostics()">Copy diagnostics</button>
         <button class="start-btn" onclick="closeSettings()">Done</button>
       </div>
     </div>

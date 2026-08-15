@@ -11,6 +11,50 @@ const levelsEl  = document.getElementById('levels');
 const toastEl   = document.getElementById('toast');
 
 // ============================================================
+//   DIAGNOSTICS  — a small rolling log, kept for when audio fails on a
+//   phone we don't have live access to. Nothing here is sent anywhere; it
+//   sits in localStorage until someone taps "Copy diagnostics" in Settings
+//   and pastes it into a message. Only meaningful state changes and
+//   failures are logged (not every successful clip), so it stays useful
+//   without filling up on normal, working days.
+// ============================================================
+const LOG_KEY = 'bluey.debug.log';
+const LOG_MAX = 60;
+
+function logEvent(kind, detail = {}) {
+  console.log('[bluey]', kind, detail);
+  try {
+    const log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+    log.push({ t: new Date().toISOString(), kind, ...detail });
+    while (log.length > LOG_MAX) log.shift();
+    localStorage.setItem(LOG_KEY, JSON.stringify(log));
+  } catch { /* logging must never be the reason something else breaks */ }
+}
+
+async function copyDiagnostics() {
+  let log = [];
+  try { log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { /* empty log is fine */ }
+  const text = JSON.stringify({
+    when: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    audioContextState: lipSync.ctx?.state || 'not created yet',
+    voice: getVoice(),
+    log,
+  }, null, 2);
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showError('Copied — paste it wherever you’re reporting the issue.');
+  } catch {
+    // The clipboard API needs a secure (https) context, which this app
+    // doesn't have — fall back to something that can be copied by hand.
+    diagnosticsOutput.value = text;
+    diagnosticsOutput.hidden = false;
+    diagnosticsOutput.select();
+  }
+}
+
+// ============================================================
 //   LIP SYNC  — driven by the audio itself
 //   The mouth used to cycle through canned shapes on a timer, which is why
 //   it looked wrong: it had no relationship to what was being said. Now the
@@ -27,15 +71,20 @@ const lipSync = {
   ensureGraph() {
     if (!this.ctx) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return false;
+      if (!Ctx) { logEvent('audio-context-unavailable'); return false; }
       this.ctx = new Ctx();
       this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 1024;
       this.analyser.smoothingTimeConstant = 0.6;
       this.buffer = new Uint8Array(this.analyser.fftSize);
       this.analyser.connect(this.ctx.destination);
+      logEvent('audio-context-created', { state: this.ctx.state });
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume()
+        .then(() => logEvent('audio-context-resumed', { state: this.ctx.state }))
+        .catch(() => logEvent('audio-context-resume-failed', { state: this.ctx.state }));
+    }
     return true;
   },
 
@@ -206,6 +255,17 @@ function playClip(url, token) {
       clearTimeout(watchdog);
       clipWatchdog = null;
       lipSync.stop();
+      // 'ended' is the normal case, every single clip — logging that would
+      // just bury the signal. Anything else is exactly what's useful to
+      // have on hand after the fact: what the AudioContext's state actually
+      // was at the moment sound didn't come out.
+      if (outcome !== 'ended') {
+        logEvent(`clip-${outcome}`, {
+          ctxState: lipSync.ctx?.state ?? 'no context',
+          networkState: audio.networkState,
+          mediaErrorCode: audio.error?.code ?? null,
+        });
+      }
       resolve(outcome);
     };
 
@@ -240,6 +300,14 @@ function playClip(url, token) {
   });
 }
 
+/** playClip only ever resolves 'ended', 'blocked', 'error', or 'stalled' —
+ *  a plain-language line for whichever of the last three actually happened. */
+function describePlaybackError(outcome) {
+  if (outcome === 'blocked') return 'Tap Bluey once to let him talk, then try again.';
+  if (outcome === 'stalled') return "That's taking too long. Try again?";
+  return "Bluey couldn't say that. Try again?";
+}
+
 async function speakText(text) {
   const token = beginSpeaking();
   const voiceId = await resolveVoice();
@@ -250,10 +318,15 @@ async function speakText(text) {
     url = await synthesize(text, voiceId);
   } catch (e) {
     if (token === speakToken) showError(e.message);
+    logEvent('speak-text-error', { message: e.message });
     return;
   }
   if (token !== speakToken) return;
-  playClip(url, token);
+
+  // Previously fire-and-forget — a failure here (blocked, a stall, a
+  // decode error) had nowhere to go and nothing was ever shown for it.
+  const outcome = await playClip(url, token);
+  if (token === speakToken && outcome !== 'ended') showError(describePlaybackError(outcome));
 }
 
 /** Short opening chunk so narration starts sooner; longer ones after. */
@@ -307,13 +380,18 @@ async function speakStory(scenes) {
       showScene(scenes[i]);
       const outcome = await playClip(url, token);
       if (token !== speakToken) return 'stopped';
-      if (outcome === 'blocked') {
-        showError('Tap Bluey once to let him talk, then start again.');
-        return 'blocked';
+      // Previously only 'blocked' was handled here — a stall or a decode
+      // error on any other scene fell through silently: no message, and
+      // the loop moved on (or, on the last scene, ended looking exactly
+      // like a story that had finished normally).
+      if (outcome !== 'ended') {
+        showError(describePlaybackError(outcome));
+        return outcome;
       }
     }
   } catch (e) {
     if (token === speakToken) showError(e.message);
+    logEvent('speak-story-error', { message: e.message });
     return 'error';
   }
   return 'finished';
@@ -798,6 +876,7 @@ function closeConfirmDialog() {
 const settingsEl  = document.getElementById('settings');
 const voiceSelect = document.getElementById('voice-bluey');
 const statusEl    = document.getElementById('settings-status');
+const diagnosticsOutput = document.getElementById('diagnostics-output');
 
 function openSettings()  { settingsEl.classList.add('open'); refreshVoices(); }
 function closeSettings() { settingsEl.classList.remove('open'); }
@@ -1145,7 +1224,7 @@ newWordInput.addEventListener('keydown', e => { if (e.key === 'Enter') generateN
 Object.assign(window, {
   setMode, setCategory, navigate, sayWord, tapBluey,
   startStory, togglePause, leaveStory,
-  openSettings, closeSettings, clearAudioCache,
+  openSettings, closeSettings, clearAudioCache, copyDiagnostics,
   openNewCollection, closeNewCollection, submitNewCollection,
   openAddWordForCurrent, closeAddWord, generateNewWord, retryNewWord, confirmNewWord,
   deleteCurrentCard, closeConfirmDialog,
