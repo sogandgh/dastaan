@@ -64,9 +64,7 @@ words from inside the app:
    another word.
 
 Every collection and card is saved on the server, in `data/vocabulary.json` and
-`data/images/`. Any device that opens the app sees the same words — add "Colors" on a
-phone, it's there on a laptop too.
-No code to edit, no image to source, no recording to make.
+`data/images/`. Any device that opens the app sees the same words
 
 ## Notes
 
