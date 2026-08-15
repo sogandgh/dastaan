@@ -706,6 +706,37 @@ body[data-mode="play"]  #panel-play { display: flex; }
   min-height: 1.1em;
 }
 .note.error { color: var(--coral); }
+.note.is-loading::after {
+  content: '';
+  animation: dots 1.4s steps(4, end) infinite;
+}
+
+/* A fresh story now writes text *and* draws a picture for every scene, so
+   "Start the story" can take 20-40s instead of a few — long enough that a
+   static line of text reads as stuck. An indeterminate bar (there's no real
+   percentage to show — the story and every picture finish as one batch, not
+   gradually) says "still working" without pretending to know how close. */
+.loading-bar {
+  width: 100%;
+  height: 6px;
+  margin-top: 12px;
+  border-radius: var(--r-pill);
+  background: var(--line);
+  overflow: hidden;
+}
+.loading-bar[hidden] { display: none; }
+.loading-bar-fill {
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--coral);
+  animation: loadingSlide 1.3s ease-in-out infinite;
+}
+@keyframes loadingSlide {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(140%); }
+  100% { transform: translateX(350%); }
+}
 
 /* ── History of stories already made ── */
 .history {

@@ -495,6 +495,7 @@ const lengthsEl   = document.getElementById('lengths');
 const promptEl    = document.getElementById('story-prompt');
 const startBtn    = document.getElementById('start-btn');
 const setupNote   = document.getElementById('setup-note');
+const loadingBar  = document.getElementById('loading-bar');
 const playThemeEl  = document.getElementById('playing-theme');
 const storyTextEl  = document.getElementById('story-text');
 const storySceneEl = document.getElementById('story-scene');
@@ -539,9 +540,12 @@ async function startStory() {
 
   setupNote.classList.remove('error');
   // A fresh story now also draws a picture for each scene, which takes
-  // longer than the text alone — say so, so the wait reads as expected
-  // rather than stuck. A replayed (cached) story skips all of this.
-  setupNote.textContent = 'Writing the story and drawing the pictures…';
+  // longer than the text alone — say so, and show something visibly moving,
+  // so a 20-40s wait reads as working rather than stuck. A replayed (cached)
+  // story resolves almost immediately and these just flash past.
+  setupNote.textContent = 'Writing the story and drawing the pictures';
+  setupNote.classList.add('is-loading');
+  loadingBar.hidden = false;
   startBtn.disabled = true;
 
   let scenes;
@@ -554,12 +558,16 @@ async function startStory() {
     }));
   } catch (e) {
     setupNote.textContent = e.message;
+    setupNote.classList.remove('is-loading');
     setupNote.classList.add('error');
+    loadingBar.hidden = true;
     startBtn.disabled = false;
     return;
   }
 
   setupNote.textContent = '';
+  setupNote.classList.remove('is-loading');
+  loadingBar.hidden = true;
   startBtn.disabled = false;
   renderHistory();
   await playStory(scenes, selectedTheme?.label || custom || 'A story for you');
