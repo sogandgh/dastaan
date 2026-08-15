@@ -403,7 +403,7 @@ function sayWord() {
   }
 }
 
-const GREETINGS = ['سلام لی‌لی', 'خوبی لی‌لی؟', 'خداحافظ لی‌لی'];
+const GREETINGS = ['سلام', 'خوبی؟', 'خداحافظ'];
 let greetingIndex = 0;
 
 function tapBluey() {

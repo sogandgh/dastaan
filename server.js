@@ -164,8 +164,7 @@ Rules:
 - About ${words} words — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
 - Use simple words a 3-year-old knows. Short sentences.
 - Warm, gentle and happy. Never scary, sad or violent. Always end well.
-- Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
-- If the child is named in the request, write the name لی‌لی.`;
+- Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).`;
 }
 
 /**
