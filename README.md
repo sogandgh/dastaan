@@ -108,8 +108,8 @@ warning and the settings panel explains why nothing is speaking.
 ## Setup
 
 ```bash
-git clone https://github.com/sogandgh/bluey.git
-cd bluey
+git clone https://github.com/sogandgh/farsi-bluey.git
+cd farsi-bluey
 ELEVENLABS_API_KEY=sk_your_key_here node server.js
 ```
 
