@@ -21,6 +21,19 @@
 
   <!-- ── Top bar: mom's territory, deliberately quiet ── -->
   <header class="topbar">
+    <button class="icon-btn back-btn" onclick="leaveStory()" aria-label="Back to story setup">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+
+    <div class="brand">
+      <span class="brand-fa" dir="rtl" lang="fa">فارسی</span>
+      <span class="brand-en">
+        <strong>Farsi with Bluey</strong>
+        <small>Persian words &amp; bedtime stories for little ones</small>
+      </span>
+    </div>
+
     <div class="modes" role="tablist" aria-label="Mode">
       <button class="mode-tab is-active" id="tab-learn" role="tab" aria-selected="true"
               onclick="setMode('learn')">Learn</button>
@@ -114,11 +127,15 @@
           <div class="body-outline"></div>
         </div>
       </div>
-      <p class="bluey-caption" id="bluey-caption" dir="rtl" lang="fa">سلام لی‌لی</p>
     </div>
 
     <!-- ── LEARN ── -->
     <section class="panel panel-learn" id="panel-learn">
+      <div class="learn-head">
+        <h1>Learn Farsi with Bluey</h1>
+        <p>Tap a card and Bluey says the word in Persian.</p>
+      </div>
+
       <div class="deck-tabs" role="tablist" aria-label="Deck">
         <button class="deck-tab is-active" id="deck-animals" onclick="setCategory('animals', this)">Animals</button>
         <button class="deck-tab" id="deck-face" onclick="setCategory('face', this)">Face &amp; body</button>
@@ -188,15 +205,15 @@
         <div class="levels" id="levels" aria-hidden="true">
           <span></span><span></span><span></span><span></span><span></span>
         </div>
+        <p class="preparing-note">Bluey is getting the story ready</p>
       </div>
-      <button class="stop-btn" onclick="stopStory()">
-        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2.4"/></svg>
-        Stop story
+      <button class="stop-btn" id="pause-btn" onclick="togglePause()">
+        <svg id="pause-icon" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="7.5" y="6" width="3.4" height="12" rx="1.4"/>
+          <rect x="13.1" y="6" width="3.4" height="12" rx="1.4"/>
+        </svg>
+        <span id="pause-label">Pause</span>
       </button>
-      <details class="transcript">
-        <summary>Show the words</summary>
-        <p id="story-text" dir="rtl" lang="fa"></p>
-      </details>
     </section>
 
   </main>
@@ -220,6 +237,11 @@
       </div>
     </div>
   </div>
+
+  <p class="disclaimer">
+    A personal fan project made for my daughter. Not affiliated with, endorsed by, or
+    connected to Bluey or Ludo Studio.
+  </p>
 
   <div class="toast" id="toast" role="status"></div>
 

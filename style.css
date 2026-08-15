@@ -135,6 +135,52 @@ body[data-mode="play"] .glow {
   transition: opacity 400ms var(--ease);
 }
 
+/* Says what this is, in both scripts, before anyone taps anything. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.brand-fa {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: var(--blue);
+  color: #fff;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 6px 16px -8px var(--blue);
+}
+.brand-en {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+.brand-en strong {
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.brand-en small {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+/* Top-left, and only offered during playback.
+   .icon-btn sets display, so the override has to match its specificity. */
+.icon-btn.back-btn { display: none; }
+body[data-mode="play"] .icon-btn.back-btn { display: grid; }
+.back-btn:hover { transform: translateX(-2px); }
+/* Keeps the back button hard left when the brand and tabs are hidden. */
+body[data-mode="play"] .topbar { justify-content: flex-start; }
+
 .modes {
   display: flex;
   gap: 4px;
@@ -173,8 +219,12 @@ body[data-mode="play"] .glow {
 .icon-btn svg { width: 21px; height: 21px; }
 .icon-btn:hover { color: var(--ink); transform: rotate(28deg); }
 
-/* In story playback nothing competes with Bluey. */
-body[data-mode="play"] .topbar { opacity: 0; pointer-events: none; }
+/* In story playback nothing competes with Bluey — except the way out. */
+body[data-mode="play"] .brand,
+body[data-mode="play"] .modes {
+  display: none;
+}
+body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
 
 /* ============================================================
    STAGE
@@ -202,21 +252,6 @@ body[data-mode="play"] .topbar { opacity: 0; pointer-events: none; }
 }
 .bluey-holder:active { transform: scale(0.98); }
 
-.bluey-caption {
-  font-family: 'Vazirmatn', sans-serif;
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-  padding: 9px 20px;
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: var(--r-pill);
-  box-shadow: var(--shadow-sm);
-  opacity: 0;
-  transform: translateY(-6px);
-  transition: opacity 320ms var(--ease), transform 320ms var(--ease), color var(--mode-shift);
-}
-.bluey-caption.show { opacity: 1; transform: none; }
-
 /* Story mode: he steps forward, centred and larger. */
 /* Story mode stacks: Bluey above, controls below, both in normal flow so they
    can never overlap however tall or narrow the screen is. */
@@ -230,7 +265,6 @@ body[data-mode="play"] .bluey-holder {
   transform: scale(1.05);
   transform-origin: center bottom;
 }
-body[data-mode="play"] .bluey-caption { display: none; }
 
 /* ============================================================
    PANELS
@@ -256,6 +290,21 @@ body[data-mode="play"]  #panel-play { display: flex; }
   align-items: center;
   gap: 18px;
   width: min(420px, 100%);
+}
+
+.learn-head {
+  text-align: center;
+}
+.learn-head h1 {
+  font-size: clamp(1.3rem, 3.4vw, 1.65rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.learn-head p {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-soft);
 }
 
 .deck-tabs {
@@ -595,6 +644,28 @@ body[data-mode="play"]  #panel-play { display: flex; }
   color: var(--amber);
 }
 
+/* While the first chunk is being synthesised there is nothing to hear and the
+   mouth is correctly still. Say so, so the wait doesn't look like a fault. */
+.preparing-note {
+  display: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--amber);
+}
+body.preparing .preparing-note { display: block; }
+body.preparing .levels,
+body.preparing .stop-btn { display: none; }
+.preparing-note::after {
+  content: '';
+  animation: dots 1.4s steps(4, end) infinite;
+}
+@keyframes dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+}
+
 /* Five bars that breathe with the narration. */
 .levels {
   display: flex;
@@ -631,33 +702,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .stop-btn svg { width: 14px; height: 14px; color: var(--coral); }
 .stop-btn:hover  { transform: translateY(-2px); }
 .stop-btn:active { transform: scale(0.97); }
-
-.transcript {
-  width: 100%;
-  text-align: center;
-}
-.transcript summary {
-  font-size: 0.78rem;
-  font-weight: 400;
-  color: var(--ink-faint);
-  cursor: pointer;
-  list-style: none;
-}
-.transcript summary::-webkit-details-marker { display: none; }
-.transcript summary:hover { color: var(--ink-soft); }
-.transcript p {
-  margin-top: 10px;
-  max-height: 20vh;
-  overflow-y: auto;
-  padding: 16px;
-  border-radius: var(--r-md);
-  background: rgba(255, 255, 255, 0.62);
-  font-family: 'Vazirmatn', sans-serif;
-  font-size: 0.92rem;
-  font-weight: 500;
-  line-height: 2;
-  color: var(--ink);
-}
 
 /* ============================================================
    SETTINGS SHEET
@@ -703,6 +747,26 @@ body[data-mode="play"]  #panel-play { display: flex; }
   background: #F1F5F9;
 }
 .ghost-btn:hover { background: #E6EDF5; }
+
+/* ============================================================
+   DISCLAIMER
+============================================================ */
+.disclaimer {
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 3;
+  width: min(92vw, 560px);
+  text-align: center;
+  font-size: 0.66rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink-faint);
+  pointer-events: none;
+  transition: opacity 400ms var(--ease);
+}
+body[data-mode="play"] .disclaimer { opacity: 0; }
 
 /* ============================================================
    TOAST

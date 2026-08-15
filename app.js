@@ -5,7 +5,6 @@ import {
 
 const blueyEl   = document.getElementById('bluey');
 const stageEl   = document.querySelector('.bluey-stage');
-const captionEl = document.getElementById('bluey-caption');
 const levelsEl  = document.getElementById('levels');
 const toastEl   = document.getElementById('toast');
 
@@ -89,6 +88,15 @@ const lipSync = {
     levelsEl?.style.setProperty('--level', '0');
   },
 
+  /** Pause: hold the mouth shut but keep the clip alive for resuming. */
+  freeze() {
+    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
+    this.level = 0;
+    stageEl.classList.remove('talking');
+    blueyEl.style.setProperty('--mouth-open', '0');
+    levelsEl?.style.setProperty('--level', '0');
+  },
+
   /** Used when the analyser is unavailable: a soft, speech-paced flutter. */
   fallback(durationSecs) {
     stageEl.classList.add('talking');
@@ -111,6 +119,8 @@ const lipSync = {
 let currentAudio = null;
 let speakToken   = 0;
 let voicesReady  = null;
+let clipWatchdog = null;   // lets pause suspend the current clip's stall timer
+let isPaused     = false;
 
 function beginSpeaking() {
   if (currentAudio) {
@@ -130,7 +140,6 @@ async function resolveVoice() {
 function playClip(url, token) {
   return new Promise(resolve => {
     const audio = new Audio(url);
-    audio.crossOrigin = 'anonymous';
     currentAudio = audio;
 
     let settled = false;
@@ -139,20 +148,32 @@ function playClip(url, token) {
       if (settled) return;
       settled = true;
       clearTimeout(watchdog);
+      clipWatchdog = null;
       lipSync.stop();
       resolve(outcome);
     };
 
+    // A paused clip must not trip the stall watchdog, so the arm/disarm is
+    // exposed for togglePause to drive.
+    const arm = () => {
+      clearTimeout(watchdog);
+      const remaining = (audio.duration || 10) - (audio.currentTime || 0);
+      watchdog = setTimeout(() => done('stalled'), remaining * 1000 + 8000);
+    };
+    clipWatchdog = { arm, disarm: () => clearTimeout(watchdog) };
+
     const analysed = lipSync.attach(audio);
 
     audio.onloadedmetadata = () => {
+      document.body.classList.remove('preparing');   // sound is about to start
       if (analysed) lipSync.start();
       else lipSync.fallback(audio.duration || 2);
-      clearTimeout(watchdog);
-      watchdog = setTimeout(() => done('stalled'), (audio.duration || 10) * 1000 + 8000);
+      arm();
     };
     audio.onended = () => done('ended');
     audio.onerror = () => done('error');
+    audio.onplay  = () => { if (analysed) lipSync.start(); };
+    audio.onpause = () => { if (!settled) lipSync.freeze(); };
 
     audio.play().catch(e =>
       done(e.name === 'NotAllowedError' ? 'blocked' : 'error')
@@ -316,7 +337,6 @@ function navigate(dir) {
 function sayWord() {
   const items = categories[currentCategory];
   const word = items[currentIndex].word;
-  showCaption(word);
   speakText(word);
 
   const voiceId = getVoice();
@@ -326,14 +346,6 @@ function sayWord() {
   }
 }
 
-let captionTimer = null;
-function showCaption(text) {
-  captionEl.textContent = text;
-  captionEl.classList.add('show');
-  clearTimeout(captionTimer);
-  captionTimer = setTimeout(() => captionEl.classList.remove('show'), 3200);
-}
-
 const GREETINGS = ['سلام لی‌لی', 'خوبی لی‌لی؟', 'خداحافظ لی‌لی'];
 let greetingIndex = 0;
 
@@ -341,7 +353,6 @@ function tapBluey() {
   if (document.body.dataset.mode === 'play') return;
   const g = GREETINGS[greetingIndex % GREETINGS.length];
   greetingIndex++;
-  showCaption(g);
   speakText(g);
 }
 
@@ -408,7 +419,6 @@ const lengthsEl   = document.getElementById('lengths');
 const promptEl    = document.getElementById('story-prompt');
 const startBtn    = document.getElementById('start-btn');
 const setupNote   = document.getElementById('setup-note');
-const storyTextEl = document.getElementById('story-text');
 const playThemeEl = document.getElementById('playing-theme');
 
 function renderThemes() {
@@ -476,10 +486,13 @@ async function startStory() {
 
 /** Shared by a fresh story and by replaying one from the history. */
 async function playStory(story, label) {
-  storyTextEl.textContent = story;
   playThemeEl.textContent = label;
   setMode('play');
+  // The first chunk takes a few seconds to synthesise. Say so, otherwise a
+  // motionless Bluey reads as broken rather than as getting ready.
+  document.body.classList.add('preparing');
   const outcome = await speakStory(story);
+  document.body.classList.remove('preparing');
   if (outcome !== 'stopped') setMode('setup');
 }
 
@@ -522,8 +535,38 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function stopStory() {
+/** Pause and resume the narration in place; the story keeps its position. */
+function togglePause() {
+  if (!currentAudio) return;
+  isPaused = !isPaused;
+
+  if (isPaused) {
+    currentAudio.pause();
+    clipWatchdog?.disarm();
+  } else {
+    clipWatchdog?.arm();
+    currentAudio.play().catch(() => {});
+  }
+  renderPauseButton();
+}
+
+function renderPauseButton() {
+  const icon  = document.getElementById('pause-icon');
+  const label = document.getElementById('pause-label');
+  if (!icon || !label) return;
+
+  icon.innerHTML = isPaused
+    ? '<path d="M8 5.4v13.2a.6.6 0 0 0 .93.5l10-6.6a.6.6 0 0 0 0-1l-10-6.6a.6.6 0 0 0-.93.5z"/>'
+    : '<rect x="7.5" y="6" width="3.4" height="12" rx="1.4"/>' +
+      '<rect x="13.1" y="6" width="3.4" height="12" rx="1.4"/>';
+  label.textContent = isPaused ? 'Play' : 'Pause';
+}
+
+/** Leave story playback entirely and return to the setup screen. */
+function leaveStory() {
   beginSpeaking();          // bumps the token, so narration unwinds
+  isPaused = false;
+  renderPauseButton();
   setMode('setup');
 }
 
@@ -586,7 +629,7 @@ document.addEventListener('keydown', e => {
   const t = e.target;
   if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
   if (document.body.dataset.mode !== 'learn') {
-    if (e.key === 'Escape' && document.body.dataset.mode === 'play') stopStory();
+    if (e.key === 'Escape' && document.body.dataset.mode === 'play') leaveStory();
     return;
   }
   if (e.key === 'ArrowLeft')  navigate(-1);
@@ -612,8 +655,9 @@ cardEl.addEventListener('touchend', e => {
 // ============================================================
 Object.assign(window, {
   setMode, setCategory, navigate, sayWord, tapBluey,
-  startStory, stopStory,
+  startStory, togglePause, leaveStory,
   openSettings, closeSettings, clearAudioCache,
+  __lipSync: lipSync,
 });
 
 renderThemes();
