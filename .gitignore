@@ -13,3 +13,8 @@ config.local.js
 
 # Personal voice recordings (the app now synthesises speech instead)
 audio/
+
+# Shared vocabulary (collections + generated card images) — runtime data
+# that lives on the server, differs per deployment, and must survive `git
+# pull` untouched.
+/data/

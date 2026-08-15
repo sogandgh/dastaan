@@ -27,11 +27,14 @@ export function setVoice(voiceId) {
 }
 
 // ── IndexedDB clip cache ────────────────────────────────────────
-const DB_NAME     = 'bluey-tts';
-const STORE       = 'clips';
-const STORIES     = 'stories';
-const CARDS       = 'cards';
-const COLLECTIONS = 'collections';
+const DB_NAME = 'bluey-tts';
+const STORE   = 'clips';
+const STORIES = 'stories';
+// 'cards' and 'collections' object stores from schema v4 are no longer
+// written to — that data now lives on the server, shared across devices —
+// but the stores are left in place rather than migrated away, since some
+// browsers may already have them and there is nothing left to gain by
+// deleting empty stores.
 let dbPromise = null;
 
 function openDB() {
@@ -40,10 +43,10 @@ function openDB() {
     const req = indexedDB.open(DB_NAME, 4);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE))       db.createObjectStore(STORE);
-      if (!db.objectStoreNames.contains(STORIES))     db.createObjectStore(STORIES);
-      if (!db.objectStoreNames.contains(CARDS))       db.createObjectStore(CARDS);
-      if (!db.objectStoreNames.contains(COLLECTIONS)) db.createObjectStore(COLLECTIONS);
+      if (!db.objectStoreNames.contains(STORE))   db.createObjectStore(STORE);
+      if (!db.objectStoreNames.contains(STORIES)) db.createObjectStore(STORIES);
+      if (!db.objectStoreNames.contains('cards'))       db.createObjectStore('cards');
+      if (!db.objectStoreNames.contains('collections')) db.createObjectStore('collections');
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => reject(req.error);
@@ -255,23 +258,27 @@ export async function deleteStory(key) {
 
 // ── Custom collections ──────────────────────────────────────────
 /** A named deck the parent creates, e.g. "Colors" or "Family". Starts empty. */
+// Collections and cards live on the server now, not in this browser's
+// IndexedDB — every device that opens the app sees the same family
+// vocabulary. (Word audio and story history stay local: they're per-device
+// caches/history, not something every device needs to share.)
 export async function createCollection(name) {
-  const record = { name: name.trim(), createdAt: Date.now() };
-  const key = `coll-${record.createdAt}-${Math.random().toString(36).slice(2, 7)}`;
-  await idbSet(COLLECTIONS, key, record);
-  return { ...record, _key: key };
+  const res = await fetch('/api/collections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error(await describeError(res));
+  const coll = await res.json();
+  return { ...coll, _key: coll.id };
 }
 
 /** Collections in the order they were created. */
 export async function listCollections() {
   try {
-    const db = await openDB();
-    const store = db.transaction(COLLECTIONS, 'readonly').objectStore(COLLECTIONS);
-
-    const [values, keys] = await Promise.all([getAllFrom(store), getAllKeysFrom(store)]);
-
-    return values
-      .map((r, i) => ({ ...r, _key: keys[i] }))
+    const { collections } = await fetchVocabulary();
+    return collections
+      .map(c => ({ ...c, _key: c.id }))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   } catch {
     return [];
@@ -281,16 +288,7 @@ export async function listCollections() {
 /** Delete a collection and every card in it. */
 export async function deleteCollection(key) {
   try {
-    const cards = await listCards(key);
-    for (const c of cards) await deleteCard(c._key);
-
-    const db = await openDB();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(COLLECTIONS, 'readwrite');
-      tx.objectStore(COLLECTIONS).delete(key);
-      tx.oncomplete = resolve;
-      tx.onerror    = () => reject(tx.error);
-    });
+    await fetch(`/api/collections/${encodeURIComponent(key)}`, { method: 'DELETE' });
   } catch {
     /* best effort */
   }
@@ -311,63 +309,68 @@ export async function generateCard(word) {
   if (!res.ok) throw new Error(await describeError(res));
 
   const { word_fa, word_en, image } = await res.json();
-  const imageBlob = await (await fetch(image)).blob();   // data: URL -> Blob
-  return { word_fa, word_en, imageBlob, imageUrl: URL.createObjectURL(imageBlob) };
+  return { word_fa, word_en, imageUrl: image };   // image is a data: URL, usable directly as <img src>
 }
 
 /** Persist a card a parent has confirmed, into the given collection. */
-export async function saveCard({ word_fa, word_en, imageBlob, collectionId }) {
-  const record = { word_fa, word_en, imageBlob, collectionId, createdAt: Date.now() };
-  const key = `card-${record.createdAt}-${Math.random().toString(36).slice(2, 7)}`;
-  await idbSet(CARDS, key, record);
-  return { ...record, _key: key, imageUrl: URL.createObjectURL(imageBlob) };
+export async function saveCard({ word_fa, word_en, imageUrl, collectionId }) {
+  const res = await fetch(`/api/collections/${encodeURIComponent(collectionId)}/cards`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ word_fa, word_en, image: imageUrl }),
+  });
+  if (!res.ok) throw new Error(await describeError(res));
+  const card = await res.json();
+  return { ...card, _key: card.id, imageUrl: card.image };
 }
 
 /** Cards in one collection, in the order they were added. */
 export async function listCards(collectionId) {
   try {
-    const db = await openDB();
-    const store = db.transaction(CARDS, 'readonly').objectStore(CARDS);
-
-    const [values, keys] = await Promise.all([getAllFrom(store), getAllKeysFrom(store)]);
-
-    return values
-      .map((r, i) => ({ ...r, _key: keys[i], imageUrl: URL.createObjectURL(r.imageBlob) }))
-      .filter(r => r.collectionId === collectionId)
-      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    const { cards } = await fetchVocabulary();
+    return normalizeCards(cards).filter(c => c.collectionId === collectionId);
   } catch {
     return [];
   }
 }
 
-function getAllFrom(store) {
-  return new Promise((resolve, reject) => {
-    const r = store.getAll();
-    r.onsuccess = () => resolve(r.result || []);
-    r.onerror   = () => reject(r.error);
-  });
+/**
+ * Every collection and every card, in one request — used at startup so
+ * populating N collections costs one round trip, not N+1.
+ */
+export async function getVocabulary() {
+  try {
+    const { collections, cards } = await fetchVocabulary();
+    return {
+      collections: collections
+        .map(c => ({ ...c, _key: c.id }))
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
+      cards: normalizeCards(cards),
+    };
+  } catch {
+    return { collections: [], cards: [] };
+  }
 }
-function getAllKeysFrom(store) {
-  return new Promise((resolve, reject) => {
-    const r = store.getAllKeys();
-    r.onsuccess = () => resolve(r.result || []);
-    r.onerror   = () => reject(r.error);
-  });
+
+function normalizeCards(cards) {
+  return cards
+    .map(c => ({ ...c, _key: c.id, imageUrl: c.image }))
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 }
 
 /** Forget one custom card. */
 export async function deleteCard(key) {
   try {
-    const db = await openDB();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(CARDS, 'readwrite');
-      tx.objectStore(CARDS).delete(key);
-      tx.oncomplete = resolve;
-      tx.onerror    = () => reject(tx.error);
-    });
+    await fetch(`/api/cards/${encodeURIComponent(key)}`, { method: 'DELETE' });
   } catch {
     /* best effort */
   }
+}
+
+async function fetchVocabulary() {
+  const res = await fetch('/api/vocabulary');
+  if (!res.ok) throw new Error(await describeError(res));
+  return res.json();
 }
 
 /** The server already turns upstream failures into a readable `error` string. */

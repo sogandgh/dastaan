@@ -1,7 +1,7 @@
 import {
   synthesize, prefetch, listVoices, clearCache, getVoice, setVoice,
   getStory, listStories, deleteStory,
-  createCollection, listCollections, deleteCollection,
+  createCollection, deleteCollection, getVocabulary,
   generateCard, saveCard, listCards, deleteCard,
 } from './tts.js';
 
@@ -716,8 +716,18 @@ cardEl.addEventListener('touchend', e => {
 let customCollections = [];   // [{ _key, name }], creation order
 
 async function loadCollections() {
-  customCollections = await listCollections();
+  const { collections, cards } = await getVocabulary();
+  customCollections = collections;
+  for (const coll of customCollections) {
+    categories[coll._key] = cards
+      .filter(c => c.collectionId === coll._key)
+      .map(c => ({ img: c.imageUrl, word: c.word_fa, _key: c._key }));
+  }
   renderDeckTabs();
+  if (currentCategory !== 'animals' && currentCategory !== 'face' && categories[currentCategory]) {
+    currentIndex = Math.min(currentIndex, Math.max(0, categories[currentCategory].length - 1));
+    updateDisplay(false);
+  }
 }
 
 // A single accidental tap must never delete a collection. The × arms itself
@@ -993,7 +1003,5 @@ renderHistory();
 updateDisplay(false);
 voicesReady = refreshVoices();
 
-// Load every existing collection's cards before the deck tabs are usable.
-loadCollections().then(() => {
-  return Promise.all(customCollections.map(c => loadCardsFor(c._key)));
-});
+// Load every collection and card — one request — before the deck tabs are usable.
+loadCollections();

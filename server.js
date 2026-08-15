@@ -10,7 +10,7 @@
  */
 
 import { createServer } from 'node:http';
-import { readFile }     from 'node:fs/promises';
+import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 
 const PORT        = process.env.PORT || 8000;
@@ -19,6 +19,14 @@ const OPENAI_KEY  = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL      = process.env.OPENAI_MODEL || 'gpt-5-mini';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini';
 const ROOT        = process.cwd();
+
+// Collections and cards are shared across every device that opens this
+// server — one family vocabulary, not one per browser. They live in a JSON
+// file plus a folder of PNGs, both outside git (see .gitignore), so `git
+// pull` on deploy never touches them.
+const DATA_DIR   = join(ROOT, 'data');
+const IMAGES_DIR = join(DATA_DIR, 'images');
+const VOCAB_FILE = join(DATA_DIR, 'vocabulary.json');
 
 const API_ROOT = 'https://api.elevenlabs.io';
 const MODEL_ID = 'eleven_v3';     // the only model that supports Persian (fas)
@@ -326,6 +334,145 @@ async function handleCard(req, res) {
   }
 }
 
+/**
+ * Shared vocabulary: collections and the cards inside them, one file for the
+ * whole family. Every mutation is funneled through a single promise chain so
+ * two requests arriving close together (two devices tapping at once) can't
+ * read-modify-write over each other — reads and writes all happen one at a
+ * time, in order. `mutationTail` always resolves even when an individual
+ * mutation throws, so one failure can't wedge every request after it.
+ */
+let vocabPromise  = null;
+let mutationTail  = Promise.resolve();
+
+async function loadVocabulary() {
+  if (vocabPromise) return vocabPromise;
+  vocabPromise = (async () => {
+    try {
+      return JSON.parse(await readFile(VOCAB_FILE, 'utf8'));
+    } catch {
+      return { collections: [], cards: [] };   // first run, or file missing
+    }
+  })();
+  return vocabPromise;
+}
+
+/** Run `fn(data)` exclusively, persist whatever it mutated, return its result. */
+function mutateVocabulary(fn) {
+  const result = mutationTail.then(async () => {
+    const data = await loadVocabulary();
+    const ret = await fn(data);
+    await mkdir(DATA_DIR, { recursive: true });
+    await writeFile(VOCAB_FILE, JSON.stringify(data, null, 2));
+    vocabPromise = Promise.resolve(data);
+    return ret;
+  });
+  mutationTail = result.catch(() => {});   // keep the chain alive past a failure
+  return result;
+}
+
+function newId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+async function saveImageFile(id, dataUrl) {
+  const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl || '');
+  if (!match) throw new Error('That image could not be saved.');
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+  await mkdir(IMAGES_DIR, { recursive: true });
+  const filename = `${id}.${ext}`;
+  await writeFile(join(IMAGES_DIR, filename), Buffer.from(match[2], 'base64'));
+  return `/data/images/${filename}`;
+}
+
+async function deleteImageFile(publicPath) {
+  if (!publicPath || !publicPath.startsWith('/data/images/')) return;
+  try { await unlink(join(ROOT, publicPath)); } catch { /* already gone */ }
+}
+
+async function handleVocabularyGet(res) {
+  sendJson(res, 200, await loadVocabulary());
+}
+
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return JSON.parse(Buffer.concat(chunks).toString());
+}
+
+async function handleCreateCollection(req, res) {
+  let name = '';
+  try { ({ name = '' } = await readJsonBody(req)); }
+  catch { return sendJson(res, 400, { error: 'Malformed request body.' }); }
+
+  name = name.trim().slice(0, 40);
+  if (!name) return sendJson(res, 400, { error: 'Give the collection a name.' });
+
+  const collection = { id: newId('coll'), name, createdAt: Date.now() };
+  try {
+    await mutateVocabulary(data => { data.collections.push(collection); });
+    sendJson(res, 200, collection);
+  } catch (e) {
+    sendJson(res, 500, { error: e.message });
+  }
+}
+
+async function handleDeleteCollection(id, res) {
+  try {
+    const removedImages = [];
+    await mutateVocabulary(data => {
+      data.collections = data.collections.filter(c => c.id !== id);
+      data.cards = data.cards.filter(c => {
+        if (c.collectionId !== id) return true;
+        removedImages.push(c.image);
+        return false;
+      });
+    });
+    await Promise.all(removedImages.map(deleteImageFile));
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: e.message });
+  }
+}
+
+async function handleAddCard(collectionId, req, res) {
+  let word_fa, word_en, image;
+  try { ({ word_fa, word_en, image } = await readJsonBody(req)); }
+  catch { return sendJson(res, 400, { error: 'Malformed request body.' }); }
+
+  if (!word_fa || !image) return sendJson(res, 400, { error: 'Missing word or picture.' });
+
+  try {
+    const id = newId('card');
+    const imagePath = await saveImageFile(id, image);
+    const card = { id, collectionId, word_fa, word_en: word_en || '', image: imagePath, createdAt: Date.now() };
+
+    await mutateVocabulary(data => {
+      if (!data.collections.some(c => c.id === collectionId)) {
+        throw new Error('That collection no longer exists.');
+      }
+      data.cards.push(card);
+    });
+    sendJson(res, 200, card);
+  } catch (e) {
+    sendJson(res, 500, { error: e.message });
+  }
+}
+
+async function handleDeleteCard(id, res) {
+  try {
+    let imageToRemove = null;
+    await mutateVocabulary(data => {
+      imageToRemove = data.cards.find(c => c.id === id)?.image || null;
+      data.cards = data.cards.filter(c => c.id !== id);
+    });
+    if (imageToRemove) await deleteImageFile(imageToRemove);
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: e.message });
+  }
+}
+
 async function handleStatic(req, res, pathname) {
   // normalize() collapses any ../ so requests cannot escape the project directory.
   const rel  = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
@@ -350,10 +497,28 @@ createServer(async (req, res) => {
   const { pathname } = new URL(req.url, `http://${req.headers.host}`);
 
   try {
-    if (pathname === '/api/voices' && req.method === 'GET')  return await handleVoices(res);
-    if (pathname === '/api/tts'    && req.method === 'POST') return await handleTts(req, res);
-    if (pathname === '/api/story'  && req.method === 'POST') return await handleStory(req, res);
-    if (pathname === '/api/card'   && req.method === 'POST') return await handleCard(req, res);
+    if (pathname === '/api/voices'     && req.method === 'GET')  return await handleVoices(res);
+    if (pathname === '/api/tts'        && req.method === 'POST') return await handleTts(req, res);
+    if (pathname === '/api/story'      && req.method === 'POST') return await handleStory(req, res);
+    if (pathname === '/api/card'       && req.method === 'POST') return await handleCard(req, res);
+    if (pathname === '/api/vocabulary' && req.method === 'GET')  return await handleVocabularyGet(res);
+    if (pathname === '/api/collections' && req.method === 'POST') return await handleCreateCollection(req, res);
+
+    const collMatch  = pathname.match(/^\/api\/collections\/([^/]+)$/);
+    if (collMatch && req.method === 'DELETE') {
+      return await handleDeleteCollection(decodeURIComponent(collMatch[1]), res);
+    }
+
+    const cardsMatch = pathname.match(/^\/api\/collections\/([^/]+)\/cards$/);
+    if (cardsMatch && req.method === 'POST') {
+      return await handleAddCard(decodeURIComponent(cardsMatch[1]), req, res);
+    }
+
+    const cardMatch  = pathname.match(/^\/api\/cards\/([^/]+)$/);
+    if (cardMatch && req.method === 'DELETE') {
+      return await handleDeleteCard(decodeURIComponent(cardMatch[1]), res);
+    }
+
     return await handleStatic(req, res, pathname);
   } catch (e) {
     sendJson(res, 500, { error: e.message });

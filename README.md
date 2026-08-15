@@ -63,7 +63,9 @@ words from inside the app:
 3. Bluey shows you the translation and the picture he generated. Confirm it, or try
    another word.
 
-Every collection and card is saved in the browser (IndexedDB) and reloads with the app.
+Every collection and card is saved on the server, in `data/vocabulary.json` and
+`data/images/`. Any device that opens the app sees the same words — add "Colors" on a
+phone, it's there on a laptop too.
 No code to edit, no image to source, no recording to make.
 
 ## Notes
