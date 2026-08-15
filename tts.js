@@ -185,19 +185,37 @@ export async function getStory({ prompt = '', focus = '', minutes = 1, label = '
   return { story, fromCache: false };
 }
 
-/** Stories told before, newest first. Replaying one costs nothing. */
+/**
+ * Stories told before, newest first. Replaying one costs nothing.
+ * Each record carries its real IndexedDB key as `_key`, so deleteStory can
+ * remove it directly rather than matching by value — a value like savedAt
+ * can't identify a record that never had one (see deleteStory below).
+ */
 export async function listStories() {
   try {
     const db = await openDB();
-    const records = await new Promise((resolve, reject) => {
-      const store = db.transaction(STORIES, 'readonly').objectStore(STORIES);
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror   = () => reject(req.error);
-    });
+    const store = db.transaction(STORIES, 'readonly').objectStore(STORIES);
 
-    return records
-      .map(r => (typeof r === 'string' ? { story: r, minutes: 1, savedAt: 0 } : r))
+    // getAll() and getAllKeys() are guaranteed to return in the same
+    // (primary-key) order, so they can be zipped positionally.
+    const [values, keys] = await Promise.all([
+      new Promise((resolve, reject) => {
+        const r = store.getAll();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror   = () => reject(r.error);
+      }),
+      new Promise((resolve, reject) => {
+        const r = store.getAllKeys();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror   = () => reject(r.error);
+      }),
+    ]);
+
+    return values
+      .map((r, i) => {
+        const rec = typeof r === 'string' ? { story: r, minutes: 1, savedAt: 0 } : r;
+        return { ...rec, _key: keys[i] };
+      })
       .filter(r => r && r.story)
       // Records saved before labels existed still deserve a name: use the
       // story's opening words rather than calling everything "A story".
@@ -213,28 +231,19 @@ function openingWords(story) {
   return words.length < story.trim().length ? `${words}…` : words;
 }
 
-/** Forget one saved story. Its audio clips stay cached until the cache is cleared. */
-export async function deleteStory(savedAt) {
+/**
+ * Forget one saved story, given the `_key` from listStories(). Its audio
+ * clips stay cached until the cache is cleared.
+ */
+export async function deleteStory(key) {
   try {
     const db = await openDB();
-    const store = db.transaction(STORIES, 'readwrite').objectStore(STORIES);
-    const keys = await new Promise(res => {
-      const r = store.getAllKeys();
-      r.onsuccess = () => res(r.result || []);
-      r.onerror   = () => res([]);
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORIES, 'readwrite');
+      tx.objectStore(STORIES).delete(key);
+      tx.oncomplete = resolve;
+      tx.onerror    = () => reject(tx.error);
     });
-    for (const k of keys) {
-      const rec = await idbGet(STORIES, k);
-      if (rec && typeof rec === 'object' && rec.savedAt === savedAt) {
-        await new Promise(res => {
-          const tx = db.transaction(STORIES, 'readwrite');
-          tx.objectStore(STORIES).delete(k);
-          tx.oncomplete = res;
-          tx.onerror = res;
-        });
-        return;
-      }
-    }
   } catch {
     /* best effort */
   }

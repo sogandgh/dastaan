@@ -523,7 +523,7 @@ async function renderHistory() {
     del.innerHTML =
       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
             stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
-    del.onclick = async () => { await deleteStory(rec.savedAt); renderHistory(); };
+    del.onclick = async () => { await deleteStory(rec._key); renderHistory(); };
 
     li.append(play, del);
     historyListEl.appendChild(li);
