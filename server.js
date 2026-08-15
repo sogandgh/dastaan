@@ -190,10 +190,13 @@ everything needed for the character to look like the same person or animal every
 
 Rules for the story itself:
 - About ${words} words total across all scenes — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
-- Very simple Farsi words a 3-year-old knows, in short sentences.
+- Very simple Farsi words a 3-year-old knows. Write the way a parent actually talks out
+  loud telling a bedtime story — natural, flowing sentences with real connective words
+  (و، چون، بعد، تا این‌که), not a string of short clipped fragments. Varying sentence
+  length is fine; choppiness is not.
 - One or two main characters, named, with a small, easy-to-follow problem or adventure for them — something they actually have to work at or figure out, not something that just happens to them.
 - Keep the story focused on one main idea. Every event should follow from a *reason* given earlier in the story — not from convenience. Don't introduce a new creature, object, or character partway through unless the story already gave a reason it would be there; a stray animal wandering in to make a sound is exactly the kind of random detail to avoid.
-- Playful sounds, actions, and dialogue to bring it to life.
+- Playful sounds, actions, and dialogue to bring it to life, woven naturally into full sentences rather than standing alone as fragments.
 - Vivid but simple descriptions — concrete things a toddler has actually seen, not abstract ideas.
 - Warm and gentle throughout. Never scary, sad, violent, or sarcastic. A satisfying, happy ending.
 - Don't moralise, and don't let a lesson feel forced — if the story is teaching something, it should come through what happens, never through being told.
