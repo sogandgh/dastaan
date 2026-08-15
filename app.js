@@ -60,25 +60,70 @@ let currentAudio = null;
 let speakToken   = 0;   // guards against a slow request landing after a newer tap
 let voicesReady  = null; // resolves once the voice list has been fetched
 
-async function speakText(text) {
-  const token = ++speakToken;
-
+/** Stop whatever is playing and claim the right to speak next. */
+function beginSpeaking() {
   if (currentAudio) {
     currentAudio.pause();
     currentAudio.currentTime = 0;
   }
   lipSync.stop();
+  return ++speakToken;
+}
 
-  // On a cold start the voice list may still be in flight; wait for it once.
+/** The current character's voice, waiting for the voice list on a cold start. */
+async function resolveVoice() {
   let voiceId = getVoices()[currentChar];
   if (!voiceId) {
     await voicesReady;
     voiceId = getVoices()[currentChar];
   }
-  if (!voiceId) {
-    openSettings();
-    return;
-  }
+  return voiceId;
+}
+
+/**
+ * Play a clip, resolving when it finishes so callers can queue the next one.
+ * Resolves 'ended', or 'blocked' when the browser refuses to autoplay — the
+ * caller must stop rather than race silently through the rest of a story.
+ */
+function playClip(url, token) {
+  return new Promise(resolve => {
+    const audio = new Audio(url);
+    currentAudio = audio;
+
+    let settled = false;
+    let watchdog = null;
+    const done = outcome => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      lipSync.stop();
+      resolve(outcome);
+    };
+
+    audio.onloadedmetadata = () => {
+      lipSync.start(audio.duration || 1.0);
+      // A background tab can suspend playback so 'ended' never fires. Without
+      // this the whole story would hang on one chunk, with no way to recover.
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => done('stalled'), (audio.duration || 10) * 1000 + 8000);
+    };
+    audio.onended = () => done('ended');
+    audio.onerror  = () => done('error');
+
+    audio.play().catch(e =>
+      done(e.name === 'NotAllowedError' ? 'blocked' : 'error')
+    );
+
+    watchdog = setTimeout(() => done('stalled'), 30000);
+    if (token !== speakToken) { audio.pause(); done('ended'); }
+  });
+}
+
+async function speakText(text) {
+  const token = beginSpeaking();
+
+  const voiceId = await resolveVoice();
+  if (!voiceId) { openSettings(); return; }
 
   setLoading(true);
   let url;
@@ -94,12 +139,78 @@ async function speakText(text) {
   if (token !== speakToken) return;   // a newer word was requested meanwhile
   setLoading(false);
 
-  const audio = new Audio(url);
-  currentAudio = audio;
-  audio.onloadedmetadata = () => lipSync.start(audio.duration || 1.0);
-  audio.onended = () => lipSync.stop();
-  audio.onerror = () => lipSync.stop();
-  audio.play().catch(e => console.warn('audio error', e));
+  playClip(url, token);
+}
+
+/**
+ * Split a story so Bluey can start talking before the whole thing is
+ * synthesised. The first chunk is deliberately short — it is the only part the
+ * child waits for. Later chunks are longer, which reads more naturally and
+ * costs fewer requests.
+ */
+function splitForNarration(text, firstMax = 90, restMax = 240) {
+  const sentences = text.match(/[^.؟!…]+[.؟!…]*\s*/g) || [text];
+  const chunks = [];
+  let buf = '';
+
+  for (const s of sentences) {
+    const max = chunks.length === 0 ? firstMax : restMax;
+    if (buf && (buf + s).length > max) {
+      chunks.push(buf.trim());
+      buf = s;
+    } else {
+      buf += s;
+    }
+  }
+  if (buf.trim()) chunks.push(buf.trim());
+  return chunks;
+}
+
+/**
+ * Narrate a long text. Each chunk is synthesised while the previous one plays,
+ * so the wait is only ever as long as the first sentence takes.
+ * Returns once narration finishes (or is interrupted).
+ */
+async function speakStory(text, onProgress) {
+  const token = beginSpeaking();
+
+  const voiceId = await resolveVoice();
+  if (!voiceId) { openSettings(); return; }
+
+  const chunks = splitForNarration(text);
+  setLoading(true);
+
+  let pending;
+  try {
+    pending = synthesize(chunks[0], voiceId);
+    const url = await pending;
+    if (token !== speakToken) return;
+    setLoading(false);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const thisUrl = i === 0 ? url : await pending;
+      if (token !== speakToken) return;
+
+      // Start the next chunk before playing this one, so synthesis overlaps playback.
+      if (i + 1 < chunks.length) pending = synthesize(chunks[i + 1], voiceId);
+
+      onProgress?.(i + 1, chunks.length);
+      const outcome = await playClip(thisUrl, token);
+      if (token !== speakToken) return;
+
+      // Racing through the remaining chunks in silence would look like the
+      // story simply vanished, so stop and say what happened.
+      if (outcome === 'blocked') {
+        showError('Tap Bluey once to let him talk, then try again.');
+        return;
+      }
+    }
+  } catch (e) {
+    if (token === speakToken) {
+      setLoading(false);
+      showError(e.message);
+    }
+  }
 }
 
 // ============================================================
@@ -440,9 +551,11 @@ async function tellStory() {
   }
 
   storyTextEl.textContent = story;
-  storyStatus.textContent = fromCache ? 'From your library.' : 'Bluey is reading it…';
+  storyStatus.textContent = 'Bluey is getting ready…';
 
-  await speakText(story);
+  await speakStory(story, (part, total) => {
+    storyStatus.textContent = `Bluey is reading it… (${part}/${total})`;
+  });
   storyStatus.textContent = '';
   storyGoBtn.disabled = false;
   renderLibrary();
