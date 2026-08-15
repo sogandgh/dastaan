@@ -123,13 +123,17 @@ body[data-mode="play"] .glow {
 /* ============================================================
    TOP BAR
 ============================================================ */
+/* Three tracks — brand, tab switcher, settings — so the switcher sits on the
+   page's true center line rather than merely between whatever brand/gear
+   happen to measure. Grid confines brand and gear to their own tracks, so a
+   long brand string clips instead of drifting into the centre column. */
 .topbar {
   position: fixed;
   z-index: 20;
   top: 0; left: 0; right: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 18px clamp(16px, 4vw, 34px);
   transition: opacity 400ms var(--ease);
@@ -137,10 +141,13 @@ body[data-mode="play"] .glow {
 
 /* Says what this is, in both scripts, before anyone taps anything. */
 .brand {
+  grid-column: 1;
+  justify-self: start;
   display: flex;
   align-items: center;
   gap: 11px;
   min-width: 0;
+  max-width: 100%;
 }
 .brand-fa {
   flex-shrink: 0;
@@ -162,6 +169,12 @@ body[data-mode="play"] .glow {
   line-height: 1.25;
   min-width: 0;
 }
+.brand-en strong,
+.brand-en small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .brand-en strong {
   font-size: 0.98rem;
   font-weight: 600;
@@ -173,15 +186,22 @@ body[data-mode="play"] .glow {
   color: var(--ink-soft);
 }
 
-/* Top-left, and only offered during playback.
-   .icon-btn sets display, so the override has to match its specificity. */
-.icon-btn.back-btn { display: none; }
+/* Top-left, sharing the brand's grid track (they're never shown together),
+   and only offered during playback. .icon-btn sets display + column, so the
+   override has to match its specificity. */
+.icon-btn.back-btn {
+  grid-column: 1;
+  justify-self: start;
+  display: none;
+}
 body[data-mode="play"] .icon-btn.back-btn { display: grid; }
 .back-btn:hover { transform: translateX(-2px); }
 /* Keeps the back button hard left when the brand and tabs are hidden. */
 body[data-mode="play"] .topbar { justify-content: flex-start; }
 
 .modes {
+  grid-column: 2;
+  justify-self: center;
   display: flex;
   gap: 4px;
   padding: 4px;
@@ -189,6 +209,7 @@ body[data-mode="play"] .topbar { justify-content: flex-start; }
   backdrop-filter: blur(14px);
   border-radius: var(--r-pill);
   box-shadow: var(--shadow-sm);
+  white-space: nowrap;
 }
 .mode-tab {
   padding: 9px 22px;
@@ -205,6 +226,8 @@ body[data-mode="play"] .topbar { justify-content: flex-start; }
 }
 
 .icon-btn {
+  grid-column: 3;
+  justify-self: end;
   display: grid;
   place-items: center;
   width: 44px;
