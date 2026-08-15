@@ -162,8 +162,13 @@ The request may be written in English or in Persian. Either way, always write th
 Rules:
 - Reply with ONLY the story text in Persian script. No title, no transliteration, no English, no markdown, no quotation marks around the whole story.
 - About ${words} words — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
-- Use simple words a 3-year-old knows. Short sentences.
-- Warm, gentle and happy. Never scary, sad or violent. Always end well.
+- Very simple Farsi words a 3-year-old knows, in short sentences.
+- One or two main characters, with a small, easy-to-follow problem or adventure for them.
+- Keep the story focused on one main idea. Every event should follow naturally from the one before it — no random scene changes, no complicated explanations.
+- Playful sounds, actions, and dialogue to bring it to life.
+- Vivid but simple descriptions — concrete things a toddler has actually seen, not abstract ideas.
+- Warm and gentle throughout. Never scary, sad, violent, or sarcastic. A satisfying, happy ending.
+- Don't moralise, and don't let a lesson feel forced — if the story is teaching something, it should come through what happens, never through being told.
 - Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).`;
 }
 
