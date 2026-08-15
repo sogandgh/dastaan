@@ -30,8 +30,8 @@ short Farsi story built around it while your kid just watches him, no reading re
 | Needed | Version | Why |
 |---|---|---|
 | [Node.js](https://nodejs.org) | 18+ | Runs `server.js`. Needs built-in `fetch`. |
-| [ElevenLabs API](https://elevenlabs.io/docs) key | — | Voices Bluey. Needs `text_to_speech` and `voices_read` permissions. |
-| [OpenAI API](https://platform.openai.com/api-keys) key | — | Writes the stories and generates card illustrations. |
+| [ElevenLabs API](https://elevenlabs.io/docs) key | — | Text-to-speech — voices every word and story. Needs `text_to_speech` and `voices_read` permissions. Model is `eleven_v3`, the only one that speaks Persian; stories are written with inline delivery tags (`[giggles]`, `[whispers]`, `[excited]`, …) that v3 reads as performance direction rather than speaking aloud. |
+| [OpenAI API](https://platform.openai.com/api-keys) key | — | Used twice: writes the Farsi stories (and the delivery tags above), and generates the illustration for each custom flashcard. |
 
 ## How to run
 
