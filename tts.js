@@ -5,34 +5,18 @@
  * synthesised on demand, then cached in IndexedDB so the same word is only
  * ever paid for once per browser.
  *
- * Persian (fas) is only supported by the eleven_v3 model — multilingual_v2
- * and the flash/turbo models do not list it, so the model is not configurable.
- *
- * The API key is supplied by the user at runtime and kept in localStorage.
- * It is deliberately never read from a file in this repo.
+ * This module never touches an API key. It calls /api/tts and /api/voices on
+ * the local server (server.js), which holds the key in ELEVENLABS_API_KEY and
+ * forwards the request to ElevenLabs. The model and voice settings therefore
+ * live in server.js, not here.
  */
 
-const API_ROOT  = 'https://api.elevenlabs.io';
-const MODEL_ID  = 'eleven_v3';
-const OUT_FMT   = 'mp3_44100_128';
-
-const LS_KEY    = 'bluey.elevenlabs.apiKey';
 const LS_VOICES = 'bluey.elevenlabs.voices';
 
-// Slightly slowed down: these are words a toddler is hearing for the first time.
-const VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.75, speed: 0.9 };
+// Cache keys are versioned by model so changing the model invalidates old clips.
+const CACHE_NS = 'eleven_v3';
 
-// ── Credential + voice storage ──────────────────────────────────
-export function getApiKey() {
-  return localStorage.getItem(LS_KEY) || '';
-}
-
-export function setApiKey(key) {
-  const trimmed = (key || '').trim();
-  if (trimmed) localStorage.setItem(LS_KEY, trimmed);
-  else localStorage.removeItem(LS_KEY);
-}
-
+// ── Voice preferences (not secret — safe in localStorage) ───────
 export function getVoices() {
   try {
     return JSON.parse(localStorage.getItem(LS_VOICES)) || {};
@@ -109,22 +93,13 @@ export async function clearCache() {
 // Blob URLs are kept alive for the life of the page so replays are instant.
 const objectUrls = new Map();
 
-// ── API ─────────────────────────────────────────────────────────
+// ── API (via the local server, which holds the key) ─────────────
 export async function listVoices() {
-  const key = getApiKey();
-  if (!key) throw new Error('No API key set.');
-
-  const res = await fetch(`${API_ROOT}/v2/voices?page_size=100`, {
-    headers: { 'xi-api-key': key },
-  });
+  const res = await fetch('/api/voices');
   if (!res.ok) throw new Error(await describeError(res));
 
   const data = await res.json();
-  return (data.voices || []).map(v => ({
-    voice_id: v.voice_id,
-    name:     v.name,
-    labels:   v.labels || {},
-  }));
+  return data.voices || [];
 }
 
 /**
@@ -135,31 +110,18 @@ export async function synthesize(text, voiceId) {
   if (!text)    throw new Error('Nothing to say.');
   if (!voiceId) throw new Error('No voice selected.');
 
-  const cacheKey = `${MODEL_ID}|${voiceId}|${text}`;
+  const cacheKey = `${CACHE_NS}|${voiceId}|${text}`;
 
   if (objectUrls.has(cacheKey)) return objectUrls.get(cacheKey);
 
   let blob = await cacheGet(cacheKey);
 
   if (!blob) {
-    const key = getApiKey();
-    if (!key) throw new Error('No API key set.');
-
-    const res = await fetch(
-      `${API_ROOT}/v1/text-to-speech/${voiceId}?output_format=${OUT_FMT}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': key,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          model_id: MODEL_ID,
-          voice_settings: VOICE_SETTINGS,
-        }),
-      }
-    );
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voiceId }),
+    });
     if (!res.ok) throw new Error(await describeError(res));
 
     blob = await res.blob();
@@ -174,7 +136,7 @@ export async function synthesize(text, voiceId) {
 /** True when this exact clip is already cached, i.e. free and instant to play. */
 export async function isCached(text, voiceId) {
   if (!text || !voiceId) return false;
-  const cacheKey = `${MODEL_ID}|${voiceId}|${text}`;
+  const cacheKey = `${CACHE_NS}|${voiceId}|${text}`;
   return objectUrls.has(cacheKey) || (await cacheGet(cacheKey)) !== null;
 }
 
@@ -187,16 +149,13 @@ export async function prefetch(text, voiceId) {
   }
 }
 
+/** The server already turns upstream failures into a readable `error` string. */
 async function describeError(res) {
-  if (res.status === 401) return 'That API key was rejected. Check it in Settings.';
-  if (res.status === 429) return 'ElevenLabs rate limit or quota reached.';
-
-  let detail = '';
   try {
     const body = await res.json();
-    detail = body?.detail?.message || body?.detail?.status || '';
+    if (body?.error) return body.error;
   } catch {
     /* non-JSON error body */
   }
-  return detail || `ElevenLabs request failed (${res.status}).`;
+  return `Speech request failed (${res.status}).`;
 }

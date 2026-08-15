@@ -3,8 +3,7 @@
 // ============================================================
 
 import {
-  synthesize, prefetch, listVoices, clearCache,
-  getApiKey, setApiKey, getVoices, setVoice,
+  synthesize, prefetch, listVoices, clearCache, getVoices, setVoice,
 } from './tts.js';
 
 const blueyEl = document.getElementById('bluey');
@@ -58,6 +57,7 @@ const lipSync = {
 
 let currentAudio = null;
 let speakToken   = 0;   // guards against a slow request landing after a newer tap
+let voicesReady  = null; // resolves once the voice list has been fetched
 
 async function speakText(text) {
   const token = ++speakToken;
@@ -68,8 +68,13 @@ async function speakText(text) {
   }
   lipSync.stop();
 
-  const voiceId = getVoices()[currentChar];
-  if (!getApiKey() || !voiceId) {
+  // On a cold start the voice list may still be in flight; wait for it once.
+  let voiceId = getVoices()[currentChar];
+  if (!voiceId) {
+    await voicesReady;
+    voiceId = getVoices()[currentChar];
+  }
+  if (!voiceId) {
     openSettings();
     return;
   }
@@ -291,16 +296,14 @@ window.changeGreeting  = changeGreeting;
 //   SETTINGS  (API key + voice picking, all client side)
 // ============================================================
 const settingsEl = document.getElementById('settings');
-const keyInput   = document.getElementById('api-key');
 const voiceBluey = document.getElementById('voice-bluey');
 const voiceBingo = document.getElementById('voice-bingo');
 const statusEl   = document.getElementById('settings-status');
 const toastEl    = document.getElementById('toast');
 
 function openSettings() {
-  keyInput.value = getApiKey();
   settingsEl.classList.add('open');
-  if (getApiKey()) refreshVoices();
+  refreshVoices();
 }
 
 function closeSettings() {
@@ -360,12 +363,6 @@ async function refreshVoices() {
   }
 }
 
-function saveKey() {
-  setApiKey(keyInput.value);
-  if (getApiKey()) refreshVoices();
-  else setStatus('Key cleared.');
-}
-
 voiceBluey.addEventListener('change', () => setVoice('bluey', voiceBluey.value));
 voiceBingo.addEventListener('change', () => setVoice('bingo', voiceBingo.value));
 
@@ -376,8 +373,11 @@ async function clearAudioCache() {
 
 window.openSettings    = openSettings;
 window.closeSettings   = closeSettings;
-window.saveKey         = saveKey;
 window.clearAudioCache = clearAudioCache;
+
+// Load voices on startup so the first tap already has a voice to speak with.
+// speakText awaits this promise rather than racing it.
+voicesReady = refreshVoices();
 
 // ============================================================
 //   SPARKLES

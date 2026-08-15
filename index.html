@@ -137,14 +137,10 @@
     <div class="settings-panel">
       <h2>Voice settings</h2>
 
-      <label for="api-key">ElevenLabs API key</label>
-      <input type="password" id="api-key" placeholder="sk_…" autocomplete="off" spellcheck="false">
       <p class="hint">
-        Stored in this browser's localStorage — never sent anywhere except ElevenLabs,
-        and never committed to this repo.
-        <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">Get a key</a>
+        Voices are loaded from your ElevenLabs account. The API key is read by the
+        server from <code>ELEVENLABS_API_KEY</code> and never reaches this page.
       </p>
-      <button class="settings-action" onclick="saveKey()">Save key &amp; load voices</button>
 
       <label for="voice-bluey">Bluey's voice</label>
       <select id="voice-bluey"></select>

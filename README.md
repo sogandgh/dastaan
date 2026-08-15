@@ -19,31 +19,24 @@ API. Built to teach my daughter her first Farsi vocabulary.
 
 ## Dependencies
 
-### Runtime
+There is **no package manager and nothing to `npm install`** — the frontend is plain
+HTML, CSS and ES modules, and the server uses only the Node standard library.
 
-There are **no build tools, package manager, or backend** — the app is static HTML, CSS
-and ES modules. Nothing to install.
-
-| Dependency | Purpose | Notes |
+| Dependency | Version | Purpose |
 |---|---|---|
-| [ElevenLabs API](https://elevenlabs.io/docs) | Text-to-speech | Requires your own API key. Free tier is sufficient. |
-| Google Fonts (Nunito, Vazirmatn) | Latin + Persian typefaces | Loaded via CDN in `index.html`. Vazirmatn renders the Farsi text. |
-| A modern browser | — | Needs ES modules, IndexedDB, `fetch`, and the Web Audio/`<audio>` element. |
+| [Node.js](https://nodejs.org) | 18+ | Runs `server.js`. Needs built-in `fetch`, so 18 or newer. |
+| [ElevenLabs API](https://elevenlabs.io/docs) | — | Text-to-speech. Requires an API key; the free tier is sufficient. |
+| Google Fonts (Nunito, Vazirmatn) | — | Latin + Persian typefaces, loaded via CDN in `index.html`. Vazirmatn renders the Farsi text. |
+| A modern browser | — | Needs ES modules, IndexedDB and `fetch`. |
 
-### Development
-
-A static file server is the only requirement. Python's built-in one is enough:
-
-```bash
-python3 -m http.server 8000
-```
-
-The app **must** be served over HTTP. Opening `index.html` as a `file://` URL fails,
-because ES modules and `fetch('greetings.json')` are blocked by CORS on that scheme.
+`server.js` does two jobs: it serves the static files, and it proxies the two ElevenLabs
+endpoints so the API key stays on the server. The app must be loaded over HTTP rather
+than as a `file://` URL, because ES modules and `fetch()` are blocked on that scheme.
 
 ## ElevenLabs integration
 
-All API code lives in `tts.js`.
+The API calls live in `server.js`; `tts.js` is the browser-side client that talks to it
+and manages the cache.
 
 | Detail | Value |
 |---|---|
@@ -52,6 +45,13 @@ All API code lives in `tts.js`.
 | Model | `eleven_v3` |
 | Output format | `mp3_44100_128` |
 | Voice settings | `stability: 0.5`, `similarity_boost: 0.75`, `speed: 0.9` |
+
+The browser calls two local endpoints instead of ElevenLabs directly:
+
+| Local endpoint | Proxies to |
+|---|---|
+| `GET /api/voices` | `GET /v2/voices` |
+| `POST /api/tts` | `POST /v1/text-to-speech/{voice_id}` |
 
 **The model is fixed at `eleven_v3` and is not configurable.** Persian (`fas`) is only
 listed as a supported language for v3 — it is absent from `eleven_multilingual_v2` and
@@ -74,28 +74,50 @@ The complete vocabulary is roughly 136 characters of Persian text. At 1 credit p
 character that is ~136 credits to generate everything once, against the free tier's
 10,000 credits per month.
 
-## API key handling
+## Setting the API key
 
-The key is entered through the ⚙️ settings panel and stored in `localStorage` under
-`bluey.elevenlabs.apiKey`. It is sent only to `api.elevenlabs.io`.
+The key is read from the **`ELEVENLABS_API_KEY`** environment variable by `server.js`.
+It is never sent to the browser and never written to disk by this project.
 
-**There is no API key in this repository and no config file to put one in.** This is
-deliberate — the repo is public. `.gitignore` additionally blocks `.env`, `*.key` and
-similar files so a local credential cannot be committed by accident.
+Get a key from [ElevenLabs → API Keys](https://elevenlabs.io/app/settings/api-keys), then
+pass it when starting the server:
+
+```bash
+ELEVENLABS_API_KEY=sk_your_key_here node server.js
+```
+
+To avoid repeating it, export it in your shell session:
+
+```bash
+export ELEVENLABS_API_KEY=sk_your_key_here
+node server.js
+```
+
+Or make it permanent by adding that `export` line to `~/.zshrc` (then
+`source ~/.zshrc`).
+
+If the variable is missing the server still starts and the app still loads — it prints a
+warning and the settings panel explains why nothing is speaking.
+
+`PORT` is also configurable and defaults to `8000`.
+
+> **There is no API key in this repository and no config file to put one in.** The repo
+> is public, so `.gitignore` also blocks `.env`, `*.key` and similar files to prevent a
+> local credential being committed by accident.
 
 ## Setup
 
 ```bash
 git clone https://github.com/sogandgh/bluey.git
 cd bluey
-python3 -m http.server 8000
+ELEVENLABS_API_KEY=sk_your_key_here node server.js
 ```
 
 1. Open `http://localhost:8000`.
-2. The settings panel opens automatically on first run.
-3. Paste an [ElevenLabs API key](https://elevenlabs.io/app/settings/api-keys) and click
-   **Save key & load voices**.
-4. Choose a voice for Bluey and one for Bingo. Two are pre-selected automatically.
+2. Voices load automatically from your ElevenLabs account, and one is assigned to each
+   character.
+3. To change them, open the ⚙️ panel and pick a voice for Bluey and Bingo. The choice is
+   remembered in `localStorage`.
 
 ## Adding vocabulary
 
@@ -112,9 +134,10 @@ text-only in the same way.
 ## Project structure
 
 ```
+server.js       static file server + ElevenLabs proxy (holds the API key)
 index.html      markup, settings panel, font + script loading
 app.js          state, navigation, lip sync, settings wiring
-tts.js          ElevenLabs client, IndexedDB cache, voice listing
+tts.js          browser-side speech client + IndexedDB cache
 bluey.css       the Bluey/Bingo character, drawn entirely in CSS
 style.css       layout, background scene, settings panel, toast
 greetings.json  greeting phrases per character
