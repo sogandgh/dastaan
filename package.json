@@ -1,8 +1,8 @@
 {
-  "name": "farsi-bluey",
+  "name": "dastaan",
   "private": true,
   "type": "module",
-  "description": "Persian flashcards and Farsi bedtime stories, narrated by a CSS-drawn Bluey via ElevenLabs.",
+  "description": "Persian flashcards and Farsi bedtime stories, narrated by an animated character via ElevenLabs.",
   "engines": {
     "node": ">=18"
   },

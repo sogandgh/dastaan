@@ -1,5 +1,5 @@
 /**
- * tts.js — ElevenLabs text-to-speech for Bluey
+ * tts.js — ElevenLabs text-to-speech for Dastaan
  *
  * Replaces the pre-recorded clips this app used to ship with. Every word is
  * synthesised on demand, then cached in IndexedDB so the same word is only

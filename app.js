@@ -303,9 +303,9 @@ function playClip(url, token) {
 /** playClip only ever resolves 'ended', 'blocked', 'error', or 'stalled' —
  *  a plain-language line for whichever of the last three actually happened. */
 function describePlaybackError(outcome) {
-  if (outcome === 'blocked') return 'Tap Bluey once to let him talk, then try again.';
+  if (outcome === 'blocked') return 'Tap once to let it talk, then try again.';
   if (outcome === 'stalled') return "That's taking too long. Try again?";
-  return "Bluey couldn't say that. Try again?";
+  return "Couldn't say that. Try again?";
 }
 
 async function speakText(text) {

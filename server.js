@@ -108,8 +108,8 @@ async function fetchWithTimeout(url, options = {}, ms = 20000, externalSignal) {
 // person looking at the app just needs "the voice isn't working right
 // now," not the provider's own error text. One generic line per provider,
 // always; the log is where the real answer lives.
-const ELEVENLABS_FRIENDLY_ERROR = "Bluey's voice isn't working right now. Try again in a bit.";
-const OPENAI_FRIENDLY_ERROR     = "Bluey couldn't do that right now. Try again in a bit.";
+const ELEVENLABS_FRIENDLY_ERROR = "The voice isn't working right now. Try again in a bit.";
+const OPENAI_FRIENDLY_ERROR     = "Couldn't do that right now. Try again in a bit.";
 const ERROR_LOG_FILE = join(DATA_DIR, 'errors.log');
 
 async function logServerError(provider, detail) {
@@ -817,7 +817,7 @@ createServer(async (req, res) => {
     sendJson(res, 500, { error: e.message });
   }
 }).listen(PORT, () => {
-  console.log(`Learn with Bluey → http://localhost:${PORT}`);
+  console.log(`Dastaan → http://localhost:${PORT}`);
   if (!API_KEY) {
     console.warn('\n⚠  ELEVENLABS_API_KEY is not set — the app will load but stay silent.');
     console.warn('   Restart with: ELEVENLABS_API_KEY=sk_… node server.js\n');

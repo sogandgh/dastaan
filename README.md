@@ -1,19 +1,19 @@
-# Farsi with Bluey
+# Dastaan
 
-A Persian-language learning app built around a CSS-drawn Bluey who actually talks — real
-ElevenLabs voice, mouth moving to the audio, not a recording. Three things it does:
+A Persian-language learning app built around an animated character who actually talks —
+real ElevenLabs voice, mouth moving to the audio, not a recording. Three things it does:
 
 **Teach your kid Farsi.** Animal and body-part flashcards, ready out of the box. Tap a
-card, Bluey says the word in Persian.
+card, the character says the word in Persian.
 
 **Grow the vocabulary yourself.** Create a collection — Colors, Family, whatever your
 kid is into this week — and add words to it by typing them, in English or Persian.
-Bluey translates it, generates an illustration for it, and learns to say it, all in one
-step.
+Translated, illustrated, and voiced, all in one step.
 
 **Tell a bedtime story your way.** Pick a focus — potty training, bedtime, brushing
-teeth, trying new food, sharing, big feelings — or type your own idea. Bluey narrates a
-short Farsi story built around it while your kid just watches him, no reading required.
+teeth, trying new food, sharing, big feelings — or type your own idea. The character
+narrates a short Farsi story built around it while your kid just watches, no reading
+required.
 
 ## Screenshots
 
@@ -36,15 +36,15 @@ short Farsi story built around it while your kid just watches him, no reading re
 ## How to run
 
 ```bash
-git clone https://github.com/sogandgh/farsi-bluey.git
-cd farsi-bluey
+git clone https://github.com/sogandgh/dastaan.git
+cd dastaan
 export ELEVENLABS_API_KEY=sk_your_key_here
 export OPENAI_API_KEY=sk-your_key_here
 node server.js
 ```
 
 Open **http://localhost:8000**. Voices load automatically from your ElevenLabs account;
-change which one Bluey uses from the ⚙️ panel.
+change which one it uses from the ⚙️ panel.
 
 `PORT` overrides the port (default `8000`); `OPENAI_MODEL` overrides the story model
 (default `gpt-5-mini`); `OPENAI_IMAGE_MODEL` overrides the illustration model (default
@@ -60,8 +60,7 @@ words from inside the app:
 
 1. Tap **+** next to the deck tabs and name a new collection.
 2. Tap the **+** beside the card to add a word to it — type it in English or Persian.
-3. Bluey shows you the translation and the picture he generated. Confirm it, or try
-   another word.
+3. Review the translation and the generated picture. Confirm it, or try another word.
 
 Every collection and card is saved on the server, in `data/vocabulary.json` and
 `data/images/`. Any device that opens the app sees the same words — and the same
