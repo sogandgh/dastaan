@@ -206,20 +206,19 @@
 
       <div class="themes" id="themes" role="group" aria-label="Story focus"></div>
 
-      <label class="field">
-        <span class="field-label">Or ask for something else</span>
-        <input type="text" id="story-prompt" dir="auto" autocomplete="off"
-               placeholder="a story about a bear who bakes bread">
-      </label>
-
-      <div class="field">
-        <span class="field-label">How long</span>
-        <div class="lengths" id="lengths" role="group" aria-label="Story length"></div>
+      <div class="custom-idea">
+        <span class="custom-idea-or" aria-hidden="true">or</span>
+        <label class="sr-only" for="story-prompt">Type your own story idea</label>
+        <input type="text" id="story-prompt" class="custom-idea-input" dir="auto" autocomplete="off"
+               placeholder="type your own idea, like a bear who bakes bread">
       </div>
 
-      <button class="start-btn" id="start-btn" onclick="startStory()">Start the story</button>
-      <div class="loading-bar" id="loading-bar" hidden><div class="loading-bar-fill"></div></div>
-      <p class="note" id="setup-note"></p>
+      <div class="setup-footer">
+        <div class="lengths" id="lengths" role="group" aria-label="Story length"></div>
+        <button class="start-btn" id="start-btn" onclick="startStory()">Start the story</button>
+        <div class="loading-bar" id="loading-bar" hidden><div class="loading-bar-fill"></div></div>
+        <p class="note" id="setup-note"></p>
+      </div>
       </div>
 
       <section class="history" id="history" hidden>
