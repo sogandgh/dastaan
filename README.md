@@ -34,4 +34,4 @@ To reach it from a phone on the same wifi, use your computer's LAN IP instead of
 
 ## Notes
 
-Bluey is a creation of [Ludo Studio](https://www.ludostudio.com.au/). This is an unaffiliated personal project, not endorsed by or connected to the rights holders, and not for commercial use.
+The narrator, Lily (لی‌لی), is an original character made for this project — not affiliated with any existing show or studio. A personal project, not for commercial use.

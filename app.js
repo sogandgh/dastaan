@@ -5,8 +5,8 @@ import {
   generateCard, saveCard, listCards, deleteCard,
 } from './tts.js';
 
-const blueyEl   = document.getElementById('bluey');
-const stageEl   = document.querySelector('.bluey-stage');
+const lilyEl    = document.getElementById('lily');
+const stageEl   = document.querySelector('.lily-stage');
 const levelsEl  = document.getElementById('levels');
 const toastEl   = document.getElementById('toast');
 
@@ -18,11 +18,11 @@ const toastEl   = document.getElementById('toast');
 //   failures are logged (not every successful clip), so it stays useful
 //   without filling up on normal, working days.
 // ============================================================
-const LOG_KEY = 'bluey.debug.log';
+const LOG_KEY = 'lily.debug.log';
 const LOG_MAX = 60;
 
 function logEvent(kind, detail = {}) {
-  console.log('[bluey]', kind, detail);
+  console.log('[lily]', kind, detail);
   try {
     const log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
     log.push({ t: new Date().toISOString(), kind, ...detail });
@@ -124,7 +124,7 @@ const lipSync = {
       this.level += (target - this.level) * 0.4;
 
       const v = this.level.toFixed(3);
-      blueyEl.style.setProperty('--mouth-open', v);
+      lilyEl.style.setProperty('--mouth-open', v);
       levelsEl?.style.setProperty('--level', v);
       this.raf = requestAnimationFrame(tick);
     };
@@ -135,7 +135,7 @@ const lipSync = {
     if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
     this.level = 0;
     stageEl.classList.remove('talking');
-    blueyEl.style.setProperty('--mouth-open', '0');
+    lilyEl.style.setProperty('--mouth-open', '0');
     levelsEl?.style.setProperty('--level', '0');
   },
 
@@ -144,7 +144,7 @@ const lipSync = {
     if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
     this.level = 0;
     stageEl.classList.remove('talking');
-    blueyEl.style.setProperty('--mouth-open', '0');
+    lilyEl.style.setProperty('--mouth-open', '0');
     levelsEl?.style.setProperty('--level', '0');
   },
 
@@ -156,7 +156,7 @@ const lipSync = {
       const t = (performance.now() - started) / 1000;
       if (t > durationSecs) { this.stop(); return; }
       const v = (0.5 + 0.5 * Math.sin(t * 11)) * 0.7 + 0.1;
-      blueyEl.style.setProperty('--mouth-open', v.toFixed(3));
+      lilyEl.style.setProperty('--mouth-open', v.toFixed(3));
       levelsEl?.style.setProperty('--level', v.toFixed(3));
       this.raf = requestAnimationFrame(tick);
     };
@@ -520,7 +520,7 @@ function sayWord() {
 const GREETINGS = ['سلام', 'خوبی؟', 'خداحافظ'];
 let greetingIndex = 0;
 
-function tapBluey() {
+function tapLily() {
   if (document.body.dataset.mode === 'play') return;
   const g = GREETINGS[greetingIndex % GREETINGS.length];
   greetingIndex++;
@@ -749,7 +749,7 @@ async function playStory(rawScenes, label) {
   renderPauseButton();
   setMode('play');
   // The first chunk takes a few seconds to synthesise. Say so, otherwise a
-  // motionless Bluey reads as broken rather than as getting ready.
+  // motionless Lily reads as broken rather than as getting ready.
   document.body.classList.add('preparing');
   const outcome = await speakStory(scenes);
   document.body.classList.remove('preparing');
@@ -880,7 +880,7 @@ function closeConfirmDialog() {
 //   SETTINGS
 // ============================================================
 const settingsEl  = document.getElementById('settings');
-const voiceSelect = document.getElementById('voice-bluey');
+const voiceSelect = document.getElementById('voice-lily');
 const statusEl    = document.getElementById('settings-status');
 const diagnosticsOutput = document.getElementById('diagnostics-output');
 
@@ -948,9 +948,9 @@ function showError(msg) {
 document.addEventListener('keydown', e => {
   const t = e.target;
   if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
-  if (t.id === 'bluey-holder' && (e.key === ' ' || e.key === 'Enter')) {
+  if (t.id === 'lily-holder' && (e.key === ' ' || e.key === 'Enter')) {
     e.preventDefault();
-    tapBluey();
+    tapLily();
     return;
   }
   if (document.body.dataset.mode !== 'learn') {
@@ -1244,7 +1244,7 @@ newWordInput.addEventListener('keydown', e => { if (e.key === 'Enter') generateN
 //   EXPOSE + INIT
 // ============================================================
 Object.assign(window, {
-  setMode, setCategory, navigate, sayWord, tapBluey,
+  setMode, setCategory, navigate, sayWord, tapLily,
   startStory, togglePause, leaveStory,
   openSettings, closeSettings, clearAudioCache, copyDiagnostics,
   openNewCollection, closeNewCollection, submitNewCollection,

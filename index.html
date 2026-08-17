@@ -6,12 +6,12 @@
   <meta name="description" content="Persian flashcards and Farsi bedtime stories, narrated by an animated character.">
   <meta name="theme-color" content="#F7F9FF">
   <title>Dastaan</title>
-  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Vazirmatn:wght@500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="bluey.css">
+  <link rel="stylesheet" href="lily.css">
 </head>
 <body data-mode="learn">
 
@@ -52,80 +52,52 @@
 
   <main class="stage" id="main-stage">
 
-    <!-- ── Bluey lives here in every mode; the stage moves around him ── -->
-    <div class="bluey-holder" id="bluey-holder" onclick="tapBluey()"
-         role="button" tabindex="0" aria-label="Say hi to Bluey">
-      <div class="bluey-stage" aria-hidden="true">
-        <div class="bluey" id="bluey">
-          <div class="main-body">
-            <div class="tummy"></div>
-            <div class="snout-outline1"></div>
-            <div class="snout-outline2"></div>
-            <div class="big-spot1"></div>
-            <div class="big-spot2"></div>
-            <div class="little-spot1"></div>
-            <div class="little-spot2"></div>
-            <div class="snout-blue-strip1"></div>
-            <div class="snout-blue-strip2"></div>
-            <div class="snout-blue-strip3"></div>
-            <div class="mouth1"></div>
-            <div class="mouth2"></div>
-            <div class="eye1"><div class="pupil1"></div></div>
-            <div class="eye2"><div class="pupil2"></div></div>
+    <!-- ── Lily lives here in every mode; the stage moves around her ── -->
+    <div class="lily-holder" id="lily-holder" onclick="tapLily()"
+         role="button" tabindex="0" aria-label="Say hi to Lily">
+      <div class="lily-stage" aria-hidden="true">
+        <div class="lily" id="lily">
+          <div class="hair-side-l"></div>
+          <div class="hair-side-r"></div>
+          <div class="curl-end-l"></div>
+          <div class="curl-end-r"></div>
+          <div class="head"></div>
+          <div class="hair-cap"></div>
+          <div class="curl curl1"></div>
+          <div class="curl curl2"></div>
+          <div class="curl curl3"></div>
+          <div class="curl curl4"></div>
+          <div class="curl curl5"></div>
+          <div class="curl curl6"></div>
+          <div class="eyes">
+            <div class="eye1"><div class="pupil"></div><div class="pupil-shine"></div><div class="lid"></div></div>
+            <div class="eye2"><div class="pupil"></div><div class="pupil-shine"></div><div class="lid"></div></div>
           </div>
-          <div class="tummy-bottom"></div>
-          <div class="background-snout1"></div>
-          <div class="background-snout2"></div>
-          <div class="nose-left"></div>
-          <div class="nose-top"></div>
-          <div class="nose-right"></div>
-          <div class="nose-shine"></div>
-          <div class="ear1-left"></div>
-          <div class="ear1-right"></div>
-          <div class="ear1-inner"></div>
-          <div class="ear2-left"></div>
-          <div class="ear2-right"></div>
-          <div class="ear2-inner"></div>
-          <div class="eyebrows">
-            <div class="eyebrow-l1"></div>
-            <div class="eyebrow-l2"></div>
-            <div class="eyebrow-l-inner"></div>
-            <div class="eyebrow-r1"></div>
-            <div class="eyebrow-r2"></div>
-            <div class="eyebrow-r-inner"></div>
-          </div>
-          <div class="arm-group">
+          <div class="brow-l"></div>
+          <div class="brow-r"></div>
+          <div class="cheek-l"></div>
+          <div class="cheek-r"></div>
+          <div class="nose"></div>
+          <div class="mouth1"></div>
+          <div class="mouth2"></div>
+          <div class="neck"></div>
+          <div class="dress"></div>
+          <div class="dress-trim"></div>
+          <div class="collar"></div>
+          <div class="arm-l-group">
+            <div class="sleeve"></div>
             <div class="arm"></div>
-            <div class="armband"></div>
             <div class="hand"></div>
-            <div class="finger1"></div>
-            <div class="finger2"></div>
-            <div class="finger3"></div>
-            <div class="finger4"></div>
           </div>
-          <div class="leg-l1"></div>
-          <div class="legband1"></div>
-          <div class="leg-l2"></div>
-          <div class="footl"></div>
-          <div class="toe-l1"></div>
-          <div class="toe-l2"></div>
-          <div class="leg-r1"></div>
-          <div class="legband2"></div>
-          <div class="leg-r2"></div>
-          <div class="footr"></div>
-          <div class="toe-r1"></div>
-          <div class="toe-r2"></div>
-          <div class="tail">
-            <div class="tail-bottom1"></div>
-            <div class="tail-top1"></div>
-            <div class="tail-band"></div>
-            <div class="tail-end1"></div>
-            <div class="tail-end2"></div>
-            <div class="tail-end-middle"></div>
-            <div class="tail-fluff1"></div>
-            <div class="tail-fluff2"></div>
+          <div class="arm-r-group">
+            <div class="sleeve"></div>
+            <div class="arm"></div>
+            <div class="hand"></div>
           </div>
-          <div class="body-outline"></div>
+          <div class="leg-l"></div>
+          <div class="leg-r"></div>
+          <div class="shoe-l"></div>
+          <div class="shoe-r"></div>
         </div>
       </div>
     </div>
@@ -329,7 +301,7 @@
 
       <label class="field">
         <span class="field-label">Narrator voice</span>
-        <select id="voice-bluey"></select>
+        <select id="voice-lily"></select>
       </label>
 
       <p class="note" id="settings-status"></p>
@@ -346,11 +318,6 @@
       </div>
     </div>
   </div>
-
-  <p class="disclaimer">
-    A personal project. Not affiliated with, endorsed by, or
-    connected to Bluey or Ludo Studio.
-  </p>
 
   <div class="toast" id="toast" role="status"></div>
 

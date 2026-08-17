@@ -11,7 +11,7 @@
  * live in server.js, not here.
  */
 
-const LS_VOICE = 'bluey.elevenlabs.voice';
+const LS_VOICE = 'lily.elevenlabs.voice';
 
 // Cache keys are versioned by model so changing the model invalidates old clips.
 const CACHE_NS = 'eleven_v3';
@@ -27,7 +27,7 @@ export function setVoice(voiceId) {
 }
 
 // ── IndexedDB clip cache ────────────────────────────────────────
-const DB_NAME = 'bluey-tts';
+const DB_NAME = 'lily-tts';
 const STORE   = 'clips';
 const STORIES = 'stories';
 // 'cards', 'collections', and (as of this file) 'stories' are no longer

@@ -235,7 +235,7 @@ body[data-mode="play"] .topbar { justify-content: flex-start; }
 .icon-btn svg { width: 21px; height: 21px; }
 .icon-btn:hover { color: var(--ink); transform: rotate(28deg); }
 
-/* In story playback nothing competes with Bluey — except the way out. */
+/* In story playback nothing competes with Lily — except the way out. */
 body[data-mode="play"] .brand,
 body[data-mode="play"] .modes {
   display: none;
@@ -257,7 +257,7 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
 }
 
 /* ── The character, and how he travels between modes ── */
-.bluey-holder {
+.lily-holder {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -266,11 +266,11 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
   cursor: pointer;
   transition: transform var(--mode-shift);
 }
-.bluey-holder:active { transform: scale(0.98); }
+.lily-holder:active { transform: scale(0.98); }
 
-/* A soft contact shadow so Bluey reads as standing in the scene rather
+/* A soft contact shadow so Lily reads as standing in the scene rather
    than floating next to whatever panel happens to share the page. */
-.bluey-holder::after {
+.lily-holder::after {
   content: '';
   width: 100px;
   height: 14px;
@@ -280,7 +280,7 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
 }
 
 /* Story mode uses the same side-by-side stage as Learn and Story setup —
-   Bluey on the left, the story text where a parent can follow along on the
+   Lily on the left, the story text where a parent can follow along on the
    right — rather than a special centred layout of its own. */
 
 /* ============================================================
@@ -884,7 +884,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   color: var(--amber);
 }
 
-/* The story itself, so a grown-up can follow along while Bluey narrates.
+/* The story itself, so a grown-up can follow along while Lily narrates.
    Tall enough that the picture and the current line of text are both
    visible together without scrolling — that's the point of having both. */
 .story-panel {
@@ -1030,9 +1030,9 @@ body.preparing .stop-btn { display: none; }
   font-size: 0.88rem;
   font-weight: 500;
   color: var(--ink-soft);
-  background: #F1F5F9;
+  background: var(--sky-lo);
 }
-.ghost-btn:hover { background: #E6EDF5; }
+.ghost-btn:hover { background: var(--sand); }
 
 /* Fallback for copyDiagnostics() when the clipboard API isn't available —
    shown pre-selected so it can still be copied by hand. */
@@ -1174,7 +1174,10 @@ body[data-mode="play"] .disclaimer { opacity: 0; }
     padding-top: 78px;
     overflow-y: auto;
   }
-  .bluey-holder { transform: scale(0.78); margin-bottom: -22px; }
+  /* No extra scale-down here anymore — it was stacking on top of
+     lily.css's own ≤640px mobile scale and compounding to smaller
+     than intended. lily.css's mobile breakpoint handles her size on
+     phones; this range (641–860px) now gets the full desktop scale. */
   .panel-learn, .panel-setup, .panel-play { width: 100%; max-width: 440px; }
   .panel-setup { max-height: none; }
   .card-art { height: clamp(140px, 20vh, 180px); }
