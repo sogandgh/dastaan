@@ -5,39 +5,35 @@
 ============================================================ */
 
 :root {
-  /* Day — the ambient wash stays in the blue family (one accent, not a
-     blue-to-purple fade); periwinkle is reserved for the backdrop's
-     secondary blob and small accents, never the dominant gradient. */
-  --sky-hi:    #F7F9FF;
-  --sky-lo:    #E7EEFF;
+  /* Day — warm and flat, not a wash. */
+  --sky-lo:    #F8EDEB;
   --paper:     #FFFFFF;
   --ink:       #22304A;
   --ink-soft:  #6A7A94;
   --ink-faint: #9FADC2;
-  --blue:      #3A86FF;
-  --blue-deep: #2864D6;
-  --sand:      #BDB2FF;
-  --coral:     #F0567A;
+  --blue:      #FFB5A7;  /* primary accent — salmon, paired with dark ink text */
+  --blue-deep: #3D7566;  /* deep teal (from --mint) — the text-safe hover/deep variant */
+  --mint:      #BEE3DB;  /* the one cool note against an otherwise warm palette */
+  --sand:      #FFD1BA;  /* light peach — secondary accent background */
+  --coral:     #C94A32;  /* danger + hero CTA — deep enough for white text */
 
   /* Story light — warmer and softer than Learn, never dark */
-  --warm-hi:   #FFF4F4;
-  --warm-lo:   #FFD6E0;
-  --warm-edge: #FFC2D1;
-  --amber:     #C2436A;
+  --warm-lo:   #FCD5CE;
+  --amber:     #B85A47;
 
   --line:      rgba(34, 48, 74, 0.10);
-  --r-sm:  14px;
-  --r-md:  22px;
-  /* The three "stage" surfaces (flashcard, story panel, sheet) share a
-     gently asymmetric corner instead of a uniform rounded-rect, so they
-     read as a shape, not a default card component. Everything smaller
-     — buttons, chips, inputs — stays uniform (r-sm/r-md/r-pill). */
-  --r-lg:  34px 20px 34px 20px;
-  --r-pill: 999px;
+  /* Flat, square, no drop shadows — sharp corners on every box (cards,
+     sheets, panels, tabs, chips, buttons, inputs). Circular elements
+     (icon buttons, dots, nav arrows — border-radius: 50% below) are a
+     separate shape, not a "box", and stay round. */
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+  --r-pill: 0;
 
-  --shadow-sm: 0 2px 8px rgba(34, 48, 74, 0.07);
-  --shadow-md: 0 10px 30px -12px rgba(34, 48, 74, 0.28);
-  --shadow-lg: 0 28px 60px -24px rgba(34, 48, 74, 0.38);
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 
   --ease: cubic-bezier(0.32, 0.72, 0.24, 1);
   --mode-shift: 720ms var(--ease);
@@ -53,7 +49,7 @@
 html, body { height: 100%; }
 
 body {
-  font-family: 'Fredoka', system-ui, sans-serif;
+  font-family: 'Baloo 2', system-ui, sans-serif;
   color: var(--ink);
   background: var(--sky-lo);
   overflow: hidden;
@@ -66,9 +62,8 @@ button { border: none; background: none; cursor: pointer; }
 button, [role="button"] { touch-action: manipulation; }
 
 :focus-visible {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--blue-deep);
   outline-offset: 3px;
-  border-radius: 6px;
 }
 
 .skip-link {
@@ -90,53 +85,17 @@ button, [role="button"] { touch-action: manipulation; }
 }
 
 /* ============================================================
-   BACKDROP — a wash, not a cartoon. Shifts to dusk in story mode.
+   BACKDROP — one flat color per mode. Shifts to dusk in story mode.
 ============================================================ */
 .backdrop {
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(170deg, var(--sky-hi) 0%, var(--sky-lo) 68%, #CFE0FF 100%);
+  background: var(--sky-lo);
   transition: background var(--mode-shift);
 }
-
-/* One oversized, heavily blurred shape gives depth without clip art —
-   the single light source for Learn mode. Story mode adds its own
-   light (.glow below) rather than stacking a second blob on top. */
-.wash {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.55;
-  transition: opacity var(--mode-shift), background var(--mode-shift);
-}
-.wash-1 {
-  width: 56vw; height: 56vw;
-  top: -18vw; left: -12vw;
-  background: #FFFFFF;
-}
-
-/* A soft pool of warm light behind Bluey once the story starts. */
-.glow {
-  position: absolute;
-  left: 50%;
-  top: 42%;
-  width: min(80vw, 700px);
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%) scale(0.6);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 244, 224, 0.95) 0%, rgba(255, 226, 190, 0) 66%);
-  opacity: 0;
-  transition: opacity var(--mode-shift), transform var(--mode-shift);
-}
-
 body[data-mode="play"] .backdrop {
-  background: linear-gradient(170deg, var(--warm-hi) 0%, var(--warm-lo) 62%, var(--warm-edge) 100%);
-}
-body[data-mode="play"] .wash-1 { opacity: 0.35; }
-body[data-mode="play"] .glow {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+  background: var(--warm-lo);
 }
 
 /* ============================================================
@@ -174,13 +133,11 @@ body[data-mode="play"] .glow {
   place-items: center;
   width: 42px;
   height: 42px;
-  border-radius: 13px;
   background: var(--blue);
-  color: #fff;
+  color: var(--ink);
   font-family: 'Vazirmatn', sans-serif;
   font-size: 0.82rem;
   font-weight: 700;
-  box-shadow: 0 6px 16px -8px var(--blue);
 }
 .brand-en {
   display: flex;
@@ -279,7 +236,7 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
   align-items: center;
   justify-content: center;
   gap: clamp(20px, 5vw, 76px);
-  padding: 92px clamp(16px, 4vw, 40px) 32px;
+  padding: 92px clamp(16px, 4vw, 40px) 56px;
 }
 
 /* ── The character, and how he travels between modes ── */
@@ -298,11 +255,11 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
    than floating next to whatever panel happens to share the page. */
 .bluey-holder::after {
   content: '';
-  width: 120px;
-  height: 18px;
+  width: 100px;
+  height: 14px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(34, 48, 74, 0.18), rgba(34, 48, 74, 0) 75%);
+  background: rgba(34, 48, 74, 0.14);
 }
 
 /* Story mode uses the same side-by-side stage as Learn and Story setup —
@@ -373,7 +330,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   flex-shrink: 0;
 }
 .add-word-btn svg { width: 17px; height: 17px; }
-.add-word-btn:hover { color: var(--blue); transform: scale(1.12); }
+.add-word-btn:hover { color: var(--blue-deep); transform: scale(1.12); }
 .deck-tab {
   padding: 8px 18px;
   border-radius: var(--r-pill);
@@ -381,12 +338,11 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-weight: 500;
   color: var(--ink-soft);
   background: rgba(255, 255, 255, 0.62);
-  transition: background-color 200ms, color 200ms, box-shadow 200ms;
+  transition: background-color 200ms, color 200ms;
 }
 .deck-tab.is-active {
   background: var(--blue);
-  color: #fff;
-  box-shadow: 0 6px 16px -6px var(--blue);
+  color: var(--ink);
 }
 
 /* A parent-created collection's tab carries its own remove control, so a
@@ -418,7 +374,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   inset: -14px;
 }
 .deck-tab-del:hover { opacity: 1; background: rgba(255, 255, 255, 0.35); }
-.deck-tab.is-active .deck-tab-del { color: #fff; }
+.deck-tab.is-active .deck-tab-del { color: var(--ink); }
 
 .card {
   position: relative;
@@ -488,13 +444,13 @@ body[data-mode="play"]  #panel-play { display: flex; }
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  color: var(--blue);
+  color: var(--blue-deep);
   background: var(--paper);
   box-shadow: var(--shadow-md);
   transition: color 180ms, transform 180ms;
 }
 .card-add-outside svg { width: 19px; height: 19px; }
-.card-add-outside:hover { color: var(--blue-deep); transform: scale(1.1); }
+.card-add-outside:hover { color: var(--coral); transform: scale(1.1); }
 
 /* "My Words" with nothing in it yet — an invitation, not a blank card. */
 .card-empty[hidden] { display: none; }
@@ -511,7 +467,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   box-shadow: none;
   background: rgba(255, 255, 255, 0.5);
 }
-.card-empty:hover { border-color: var(--blue); color: var(--blue-deep); }
+.card-empty:hover { border-color: var(--blue-deep); color: var(--blue-deep); }
 .card-empty-icon {
   display: grid;
   place-items: center;
@@ -523,7 +479,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   box-shadow: var(--shadow-sm);
   font-size: 1.4rem;
   line-height: 1;
-  color: var(--blue);
+  color: var(--blue-deep);
 }
 .card-empty p { font-size: 1rem; font-weight: 600; }
 .card-empty-sub { font-size: 0.82rem; font-weight: 400; color: var(--ink-faint); }
@@ -539,7 +495,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   margin-bottom: 14px;
   overflow: hidden;
   border-radius: var(--r-md);
-  background: linear-gradient(165deg, #F4FAFE, #E7F2FB);
+  background: var(--mint);
 }
 .card-art img {
   position: absolute;
@@ -581,7 +537,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   background: var(--line);
   transition: width 260ms var(--ease), border-radius 260ms var(--ease), background-color 260ms var(--ease);
 }
-.dot.active { width: 20px; border-radius: 3px; background: var(--blue); }
+.dot.active { width: 20px; border-radius: 0; background: var(--blue-deep); }
 
 .deck-nav {
   display: flex;
@@ -694,12 +650,12 @@ body[data-mode="play"]  #panel-play { display: flex; }
   border-radius: var(--r-sm);
   background: var(--paper);
   box-shadow: var(--shadow-sm);
-  font-family: 'Fredoka', 'Vazirmatn', sans-serif;
+  font-family: 'Baloo 2', 'Vazirmatn', sans-serif;
   font-size: 0.95rem;
   transition: border-color 200ms;
 }
 .field input:focus,
-.sheet select:focus { border-color: var(--blue); }
+.sheet select:focus { border-color: var(--blue-deep); }
 /* Mouse-click focus keeps just the border-color cue; keyboard focus still
    gets the same visible ring used everywhere else (global :focus-visible). */
 .field input:focus:not(:focus-visible),
@@ -720,7 +676,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   transition: border-color 200ms, color 200ms;
 }
 .length.is-active {
-  border-color: var(--blue);
+  border-color: var(--blue-deep);
   color: var(--blue-deep);
   font-weight: 600;
 }
@@ -732,7 +688,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-weight: 600;
   color: #fff;
   background: var(--coral);
-  box-shadow: 0 12px 26px -12px var(--coral);
   transition: transform 200ms var(--ease), opacity 200ms;
 }
 .start-btn:hover  { transform: translateY(-2px); }
@@ -946,7 +901,6 @@ body.preparing .stop-btn { display: none; }
 }
 .levels span {
   width: 4px;
-  border-radius: 2px;
   background: var(--amber);
   opacity: 0.6;
   height: calc(5px + var(--level, 0) * 21px);
@@ -1046,17 +1000,14 @@ body.preparing .stop-btn { display: none; }
 
 /* A distinct, more serious red — --coral is already the app's happy primary
    action color (Start the story, etc.), so it can't also read as "this is
-   destructive" without a genuinely different color to contrast against it. */
-.sheet-danger h2::before {
-  content: '⚠️';
-  margin-right: 8px;
-}
+   destructive" without a genuinely different color to contrast against it.
+   The heading carries that color itself rather than an icon. */
+.sheet-danger h2 { color: #D64545; }
 /* .sheet-actions .start-btn (below) sets background: var(--ink) at higher
    specificity than a single .danger-btn class, so the override has to match
    it exactly or the "Delete" button silently renders in the ordinary navy. */
 .sheet-actions .danger-btn {
   background: #D64545;
-  box-shadow: 0 12px 26px -12px #D64545;
 }
 .sheet-actions .danger-btn:hover { background: #B93636; }
 
@@ -1071,14 +1022,13 @@ body.preparing .stop-btn { display: none; }
   margin-top: 14px;
   padding: 10px;
   border-radius: var(--r-sm);
-  background: #F4FAFE;
+  background: var(--sky-lo);
   animation: panelIn 320ms var(--ease) both;
 }
 .card-preview img {
   width: 56px;
   height: 56px;
   object-fit: contain;
-  border-radius: 10px;
   background: #fff;
 }
 .card-preview p {

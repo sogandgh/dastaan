@@ -44,7 +44,7 @@ async function copyDiagnostics() {
 
   try {
     await navigator.clipboard.writeText(text);
-    showError('Copied — paste it wherever you’re reporting the issue.');
+    showError('Copied. Paste it wherever you’re reporting the issue.');
   } catch {
     // The clipboard API needs a secure (https) context, which this app
     // doesn't have — fall back to something that can be copied by hand.
@@ -903,7 +903,7 @@ async function refreshVoices() {
       // instead of both taglines glued together.
       const name = v.name.split(' - ')[0].trim();
       const traits = [v.labels.age, v.labels.gender, v.labels.accent].filter(Boolean).join(', ');
-      o.textContent = traits ? `${name} — ${traits}` : name;
+      o.textContent = traits ? `${name} (${traits})` : name;
       if (saved === v.voice_id) o.selected = true;
       voiceSelect.appendChild(o);
     });
