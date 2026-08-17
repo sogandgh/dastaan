@@ -5,9 +5,11 @@
 ============================================================ */
 
 :root {
-  /* Day — blue & periwinkle */
-  --sky-hi:    #F5F3FF;
-  --sky-lo:    #E3DEFF;
+  /* Day — the ambient wash stays in the blue family (one accent, not a
+     blue-to-purple fade); periwinkle is reserved for the backdrop's
+     secondary blob and small accents, never the dominant gradient. */
+  --sky-hi:    #F7F9FF;
+  --sky-lo:    #E7EEFF;
   --paper:     #FFFFFF;
   --ink:       #22304A;
   --ink-soft:  #6A7A94;
@@ -26,7 +28,11 @@
   --line:      rgba(34, 48, 74, 0.10);
   --r-sm:  14px;
   --r-md:  22px;
-  --r-lg:  34px;
+  /* The three "stage" surfaces (flashcard, story panel, sheet) share a
+     gently asymmetric corner instead of a uniform rounded-rect, so they
+     read as a shape, not a default card component. Everything smaller
+     — buttons, chips, inputs — stays uniform (r-sm/r-md/r-pill). */
+  --r-lg:  34px 20px 34px 20px;
   --r-pill: 999px;
 
   --shadow-sm: 0 2px 8px rgba(34, 48, 74, 0.07);
@@ -57,11 +63,30 @@ body {
 
 button, input, select { font: inherit; color: inherit; }
 button { border: none; background: none; cursor: pointer; }
+button, [role="button"] { touch-action: manipulation; }
 
 :focus-visible {
   outline: 3px solid var(--blue);
   outline-offset: 3px;
   border-radius: 6px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: -60px;
+  left: 16px;
+  padding: 12px 18px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-md);
+  transition: top 160ms var(--ease);
+}
+.skip-link:focus-visible {
+  top: 16px;
+  outline-color: var(--paper);
 }
 
 /* ============================================================
@@ -71,11 +96,13 @@ button { border: none; background: none; cursor: pointer; }
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(170deg, var(--sky-hi) 0%, var(--sky-lo) 68%, #D6CBFF 100%);
+  background: linear-gradient(170deg, var(--sky-hi) 0%, var(--sky-lo) 68%, #CFE0FF 100%);
   transition: background var(--mode-shift);
 }
 
-/* Two oversized, heavily blurred shapes give depth without clip art. */
+/* One oversized, heavily blurred shape gives depth without clip art —
+   the single light source for Learn mode. Story mode adds its own
+   light (.glow below) rather than stacking a second blob on top. */
 .wash {
   position: absolute;
   border-radius: 50%;
@@ -87,12 +114,6 @@ button { border: none; background: none; cursor: pointer; }
   width: 56vw; height: 56vw;
   top: -18vw; left: -12vw;
   background: #FFFFFF;
-}
-.wash-2 {
-  width: 46vw; height: 46vw;
-  bottom: -20vw; right: -10vw;
-  background: var(--sand);
-  opacity: 0.5;
 }
 
 /* A soft pool of warm light behind Bluey once the story starts. */
@@ -112,8 +133,7 @@ button { border: none; background: none; cursor: pointer; }
 body[data-mode="play"] .backdrop {
   background: linear-gradient(170deg, var(--warm-hi) 0%, var(--warm-lo) 62%, var(--warm-edge) 100%);
 }
-body[data-mode="play"] .wash-1 { opacity: 0.7; }
-body[data-mode="play"] .wash-2 { opacity: 0.35; }
+body[data-mode="play"] .wash-1 { opacity: 0.35; }
 body[data-mode="play"] .glow {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
@@ -274,6 +294,17 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
 }
 .bluey-holder:active { transform: scale(0.98); }
 
+/* A soft contact shadow so Bluey reads as standing in the scene rather
+   than floating next to whatever panel happens to share the page. */
+.bluey-holder::after {
+  content: '';
+  width: 120px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(34, 48, 74, 0.18), rgba(34, 48, 74, 0) 75%);
+}
+
 /* Story mode uses the same side-by-side stage as Learn and Story setup —
    Bluey on the left, the story text where a parent can follow along on the
    right — rather than a special centred layout of its own. */
@@ -311,6 +342,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-size: clamp(1.3rem, 3.4vw, 1.65rem);
   font-weight: 600;
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 .learn-head p {
   margin-top: 4px;
@@ -349,7 +381,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-weight: 500;
   color: var(--ink-soft);
   background: rgba(255, 255, 255, 0.62);
-  transition: all 200ms;
+  transition: background-color 200ms, color 200ms, box-shadow 200ms;
 }
 .deck-tab.is-active {
   background: var(--blue);
@@ -525,6 +557,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   line-height: 1.35;
   letter-spacing: -0.01em;
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .card-foot {
@@ -539,13 +572,14 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-weight: 500;
   color: var(--ink-faint);
   letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
 }
 .dots { display: flex; gap: 6px; }
 .dot {
   width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--line);
-  transition: all 260ms var(--ease);
+  transition: width 260ms var(--ease), border-radius 260ms var(--ease), background-color 260ms var(--ease);
 }
 .dot.active { width: 20px; border-radius: 3px; background: var(--blue); }
 
@@ -590,6 +624,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   width: min(500px, 100%);
   max-height: calc(100vh - 130px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
 }
 .setup-form {
@@ -602,6 +637,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-size: 1.7rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 .setup-head p {
   margin-top: 5px;
@@ -630,7 +666,8 @@ body[data-mode="play"]  #panel-play { display: flex; }
   text-align: center;
   line-height: 1.25;
   border: 2px solid transparent;
-  transition: all 220ms var(--ease);
+  transition: transform 220ms var(--ease), box-shadow 220ms var(--ease),
+              border-color 220ms var(--ease), color 220ms var(--ease);
 }
 .theme svg { width: 30px; height: 30px; }
 .theme:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
@@ -662,7 +699,11 @@ body[data-mode="play"]  #panel-play { display: flex; }
   transition: border-color 200ms;
 }
 .field input:focus,
-.sheet select:focus { outline: none; border-color: var(--blue); }
+.sheet select:focus { border-color: var(--blue); }
+/* Mouse-click focus keeps just the border-color cue; keyboard focus still
+   gets the same visible ring used everywhere else (global :focus-visible). */
+.field input:focus:not(:focus-visible),
+.sheet select:focus:not(:focus-visible) { outline: none; }
 .field input::placeholder { color: var(--ink-faint); }
 
 .lengths { display: flex; gap: 8px; }
@@ -676,7 +717,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-weight: 500;
   color: var(--ink-soft);
   border: 2px solid transparent;
-  transition: all 200ms;
+  transition: border-color 200ms, color 200ms;
 }
 .length.is-active {
   border-color: var(--blue);
@@ -945,6 +986,7 @@ body.preparing .stop-btn { display: none; }
   backdrop-filter: blur(3px);
   padding: 20px;
   place-items: center;
+  overscroll-behavior: contain;
 }
 .sheet-overlay.open { display: grid; }
 

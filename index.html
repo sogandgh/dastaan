@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Persian flashcards and Farsi bedtime stories, narrated by an animated character.">
+  <meta name="theme-color" content="#F7F9FF">
   <title>Dastaan</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,9 +15,10 @@
 </head>
 <body data-mode="learn">
 
+  <a class="skip-link" href="#main-stage">Skip to content</a>
+
   <div class="backdrop" aria-hidden="true">
     <span class="wash wash-1"></span>
-    <span class="wash wash-2"></span>
     <span class="glow"></span>
   </div>
 
@@ -50,11 +53,12 @@
     </button>
   </header>
 
-  <main class="stage">
+  <main class="stage" id="main-stage">
 
     <!-- ── Bluey lives here in every mode; the stage moves around him ── -->
-    <div class="bluey-holder" id="bluey-holder" onclick="tapBluey()">
-      <div class="bluey-stage">
+    <div class="bluey-holder" id="bluey-holder" onclick="tapBluey()"
+         role="button" tabindex="0" aria-label="Say hi to Bluey">
+      <div class="bluey-stage" aria-hidden="true">
         <div class="bluey" id="bluey">
           <div class="main-body">
             <div class="tummy"></div>
@@ -292,7 +296,7 @@
   <div class="sheet-overlay" id="new-collection">
     <div class="sheet">
       <h2>New collection</h2>
-      <p class="note">Give it a name. You'll add words to it next.</p>
+      <p class="note">Give it a name — you'll add words to it next.</p>
 
       <label class="field">
         <span class="field-label">Collection name</span>

@@ -948,13 +948,24 @@ function showError(msg) {
 document.addEventListener('keydown', e => {
   const t = e.target;
   if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
+  if (t.id === 'bluey-holder' && (e.key === ' ' || e.key === 'Enter')) {
+    e.preventDefault();
+    tapBluey();
+    return;
+  }
   if (document.body.dataset.mode !== 'learn') {
     if (e.key === 'Escape' && document.body.dataset.mode === 'play') leaveStory();
     return;
   }
   if (e.key === 'ArrowLeft')  navigate(-1);
   if (e.key === 'ArrowRight') navigate(1);
-  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sayWord(); }
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    // The empty-collection card has its own action (open the add-word
+    // sheet) — only fall back to sayWord() when a real card is focused.
+    if (t.id === 'card-empty') openAddWordForCurrent();
+    else sayWord();
+  }
 });
 
 promptEl.addEventListener('keydown', e => { if (e.key === 'Enter') startStory(); });
