@@ -22,14 +22,15 @@
   --amber:     #B85A47;
 
   --line:      rgba(34, 48, 74, 0.10);
-  /* Flat, square, no drop shadows — sharp corners on every box (cards,
-     sheets, panels, tabs, chips, buttons, inputs). Circular elements
-     (icon buttons, dots, nav arrows — border-radius: 50% below) are a
-     separate shape, not a "box", and stay round. */
-  --r-sm: 0;
-  --r-md: 0;
-  --r-lg: 0;
-  --r-pill: 0;
+  /* Flat, no drop shadows. Corners take the middle ground: rounded
+     enough to not be sharp, never a full stadium/pill capsule — r-md
+     and r-lg carry one asymmetric corner pair (two scales of the same
+     signature) so content surfaces read as a shape, not a default
+     rounded-rect. r-pill is a moderate rounded-rect too, not 999px. */
+  --r-sm: 10px;
+  --r-md: 22px 12px 22px 12px;
+  --r-lg: 34px 20px 34px 20px;
+  --r-pill: 16px;
 
   --shadow-sm: none;
   --shadow-md: none;
@@ -64,6 +65,7 @@ button, [role="button"] { touch-action: manipulation; }
 :focus-visible {
   outline: 3px solid var(--blue-deep);
   outline-offset: 3px;
+  border-radius: 6px;
 }
 
 .skip-link {
@@ -133,6 +135,7 @@ body[data-mode="play"] .backdrop {
   place-items: center;
   width: 42px;
   height: 42px;
+  border-radius: 10px;
   background: var(--blue);
   color: var(--ink);
   font-family: 'Vazirmatn', sans-serif;
@@ -537,7 +540,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   background: var(--line);
   transition: width 260ms var(--ease), border-radius 260ms var(--ease), background-color 260ms var(--ease);
 }
-.dot.active { width: 20px; border-radius: 0; background: var(--blue-deep); }
+.dot.active { width: 20px; border-radius: 3px; background: var(--blue-deep); }
 
 .deck-nav {
   display: flex;
@@ -901,6 +904,7 @@ body.preparing .stop-btn { display: none; }
 }
 .levels span {
   width: 4px;
+  border-radius: 2px;
   background: var(--amber);
   opacity: 0.6;
   height: calc(5px + var(--level, 0) * 21px);
@@ -1029,6 +1033,7 @@ body.preparing .stop-btn { display: none; }
   width: 56px;
   height: 56px;
   object-fit: contain;
+  border-radius: 10px;
   background: #fff;
 }
 .card-preview p {
