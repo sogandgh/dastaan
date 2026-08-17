@@ -897,8 +897,13 @@ async function refreshVoices() {
     voices.forEach(v => {
       const o = document.createElement('option');
       o.value = v.voice_id;
+      // ElevenLabs' premade voices carry a marketing tagline right in the
+      // name field ("Laura - Enthusiast, Quirky Attitude"). Strip that off
+      // so the dropdown shows a clean name plus our own trait summary,
+      // instead of both taglines glued together.
+      const name = v.name.split(' - ')[0].trim();
       const traits = [v.labels.age, v.labels.gender, v.labels.accent].filter(Boolean).join(', ');
-      o.textContent = traits ? `${v.name} — ${traits}` : v.name;
+      o.textContent = traits ? `${name} — ${traits}` : name;
       if (saved === v.voice_id) o.selected = true;
       voiceSelect.appendChild(o);
     });

@@ -5,24 +5,23 @@
 ============================================================ */
 
 :root {
-  /* Day */
-  --sky-hi:    #EEF7FD;
-  --sky-lo:    #D3E7F7;
+  /* Day — blue & periwinkle */
+  --sky-hi:    #F5F3FF;
+  --sky-lo:    #E3DEFF;
   --paper:     #FFFFFF;
   --ink:       #22304A;
   --ink-soft:  #6A7A94;
   --ink-faint: #9FADC2;
-  --blue:      #3E86C9;
-  --blue-deep: #2B5F94;
-  --sand:      #FBE8C8;
-  --coral:     #F08A6C;
-  --leaf:      #8CC084;
+  --blue:      #3A86FF;
+  --blue-deep: #2864D6;
+  --sand:      #BDB2FF;
+  --coral:     #F0567A;
 
   /* Story light — warmer and softer than Learn, never dark */
-  --warm-hi:   #FFF7EC;
-  --warm-lo:   #FFE6C9;
-  --warm-edge: #FFD5AE;
-  --amber:     #C4761F;
+  --warm-hi:   #FFF4F4;
+  --warm-lo:   #FFD6E0;
+  --warm-edge: #FFC2D1;
+  --amber:     #C2436A;
 
   --line:      rgba(34, 48, 74, 0.10);
   --r-sm:  14px;
@@ -72,7 +71,7 @@ button { border: none; background: none; cursor: pointer; }
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(170deg, var(--sky-hi) 0%, var(--sky-lo) 68%, #C7DEF2 100%);
+  background: linear-gradient(170deg, var(--sky-hi) 0%, var(--sky-lo) 68%, #D6CBFF 100%);
   transition: background var(--mode-shift);
 }
 
@@ -420,7 +419,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   transition: color 180ms, background 180ms, transform 180ms;
 }
 .card-del svg { width: 13px; height: 13px; }
-.card-del:hover { color: var(--coral); background: #FFF3EF; transform: scale(1.08); }
+.card-del:hover { color: var(--coral); background: #FFEDF2; transform: scale(1.08); }
 
 /* Add-another-word, mirrored to the opposite corner from delete. */
 /* The card and its "add another word" button sit side by side, outside the
@@ -809,7 +808,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   transition: color 180ms, background 180ms;
 }
 .history-del svg { width: 15px; height: 15px; }
-.history-del:hover { color: var(--coral); background: #FFF3EF; }
+.history-del:hover { color: var(--coral); background: #FFEDF2; }
 
 /* ============================================================
    STORY PLAYING
