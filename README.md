@@ -41,21 +41,8 @@ Open **http://localhost:8000**. It lands on the sign-in page first; create an ac
 
 To reach it from a phone on the same wifi, use your computer's LAN IP instead of `localhost`, e.g. `http://10.0.0.108:8000`.
 
-### Migrating pre-accounts data
-
-Had vocabulary or stories from before accounts existed? One-time steps:
-
-1. Sign up for real in the running app.
-2. Find your new user id in the Supabase dashboard, under Authentication → Users (looks like a uuid).
-3. From Project Settings → API, grab the `service_role` key (not the anon key). It's the one place this key is ever used, bypassing Row Level Security to write rows on your own behalf. Never set it on the running server.
-4. Run, on the machine where `data/` actually lives:
-
 ```bash
 SUPABASE_URL=https://your-project.supabase.co \
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key \
 node scripts/migrate-to-supabase.mjs --user-id=your-user-id
 ```
-
-## Notes
-
-The narrator, Lily (لی‌لی), is an original character made for this project, not affiliated with any existing show or studio. A personal project, not for commercial use.
