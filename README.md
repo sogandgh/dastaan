@@ -8,13 +8,13 @@ A language learning app for kids built around an animated character that does th
 
 ## Screenshots
 
-![Learn screen](docs/screenshot-learn.png)![Voice settings screen](docs/screenshot-voice.png)![Story setup screen](docs/screenshot-story-setup.png)![Story playing screen](docs/screenshot-story-playing.png)## Requirements
+![Learn screen](docs/screenshot-learn.png)![Story setup screen](docs/screenshot-story-setup.png)![Story playing screen](docs/screenshot-story-playing.png)\## Requirements
 
 | Needed | Version | Why |
 | --- | --- | --- |
 | [Node.js](https://nodejs.org) | 18+ | Runs `server.js` |
-| [ElevenLabs API](https://elevenlabs.io/docs) key | n/a | Text-to-speech model. Needs `text_to_speech` and `voices_read` permissions. Model is `eleven_v3`.  |
-| [OpenAI API](https://platform.openai.com/api-keys) key | n/a |  writes the Farsi stories, and generates the illustration for each custom flashcard. |
+| [ElevenLabs API](https://elevenlabs.io/docs) key | n/a | Text-to-speech model. Needs `text_to_speech` and `voices_read` permissions. Model is `eleven_v3`. |
+| [OpenAI API](https://platform.openai.com/api-keys) key | n/a | writes the Farsi stories, and generates the illustration for each custom flashcard. |
 | [Supabase](https://supabase.com) project | n/a | Real accounts (sign in/sign up) and where each family's vocabulary/stories live. Free tier is enough. |
 
 ## How to run
@@ -38,11 +38,3 @@ node server.js
 Open **http://localhost:8000**. It lands on the sign-in page first; create an account to get in. Voices load automatically from your ElevenLabs account; change which one it uses from the ⚙️ panel.
 
 `PORT` overrides the port (default `8000`); `OPENAI_MODEL` overrides the story model (default `gpt-5-mini`); `OPENAI_IMAGE_MODEL` overrides the illustration model (default `gpt-image-1-mini`). All optional, set in `.env` alongside the rest.
-
-To reach it from a phone on the same wifi, use your computer's LAN IP instead of `localhost`, e.g. `http://10.0.0.108:8000`.
-
-```bash
-SUPABASE_URL=https://your-project.supabase.co \
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key \
-node scripts/migrate-to-supabase.mjs --user-id=your-user-id
-```
