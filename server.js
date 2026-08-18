@@ -359,17 +359,19 @@ async function handleStory(req, res, auth) {
     return sendProviderError(res, 502, 'openai', `Malformed scenes JSON: ${jsonText.slice(0, 500)}`);
   }
 
-  const images = await Promise.all(scenes.map(async s => {
+  const images = await Promise.all(scenes.map(async (s, i) => {
     if (!s.image) return null;
     const fullPrompt = characters ? `${characters}. ${s.image}` : s.image;
+    let lastErr = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       if (bail()) return null;
       try {
         return await generateSceneImage(fullPrompt, clientGone.signal);
-      } catch {
-
+      } catch (e) {
+        lastErr = e;
       }
     }
+    if (!bail()) await logServerError('openai', `Scene ${i} image failed after 2 attempts: ${lastErr?.message || lastErr}`);
     return null;
   }));
   if (bail()) return;
