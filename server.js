@@ -1,29 +1,28 @@
-/**
- * server.js — static file server + ElevenLabs/OpenAI proxy + Supabase gateway
- *
- * Run with:
- *   npm install
- *   ELEVENLABS_API_KEY=sk_… OPENAI_API_KEY=sk-… \
- *   SUPABASE_URL=https://…supabase.co SUPABASE_ANON_KEY=sb_publishable_… \
- *   node server.js
- *
- * The browser never sees the ElevenLabs/OpenAI keys. The page calls
- * /api/voices, /api/tts, /api/story, /api/card on this server, which
- * attaches the right key from the environment and forwards the request.
- */
-
 import { createServer } from 'node:http';
 import { readFile, writeFile, appendFile, mkdir, unlink } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 
-// supabase-js always spins up a realtime client, which needs a global
-// WebSocket constructor — present natively from Node 22 on, but not on
-// older Node (the droplet runs 18), where createClient() would otherwise
-// throw synchronously and crash the whole server on startup. Nothing here
-// actually uses realtime subscriptions; this only exists to satisfy that
-// constructor.
+function loadEnvFile(path) {
+  let content;
+  try { content = readFileSync(path, 'utf8'); } catch { return; }
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+loadEnvFile(join(process.cwd(), '.env'));
+
 if (!globalThis.WebSocket) globalThis.WebSocket = WebSocket;
 
 const PORT        = process.env.PORT || 8000;
@@ -31,28 +30,18 @@ const API_KEY     = process.env.ELEVENLABS_API_KEY;
 const OPENAI_KEY  = process.env.OPENAI_API_KEY;
 const SUPABASE_URL      = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-// Story writing gets the full model — real creative writing in Farsi held up
-// noticeably better under it (natural idioms, causally-connected events,
-// named characters) than gpt-5-mini did, and reasoning_effort: 'minimal'
-// means that costs almost no latency (~4s vs ~3s, measured). Translating one
-// word for a flashcard is a much narrower task; gpt-5-mini stays there.
+
 const OPENAI_STORY_MODEL = process.env.OPENAI_STORY_MODEL || 'gpt-5';
 const OPENAI_MODEL       = process.env.OPENAI_MODEL || 'gpt-5-mini';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini';
 const ROOT        = process.cwd();
 
-// Collections, cards, and stories now live in Postgres (Supabase), one row
-// per record, scoped to whoever owns it — see requireAuth/dbFor below.
-// Only the picture files themselves (card art, story scene illustrations)
-// still live on disk, namespaced per user so one family's images aren't a
-// guessable path for another; everything outside git (see .gitignore), so
-// `git pull` on deploy never touches them.
 const DATA_DIR   = join(ROOT, 'data');
 const IMAGES_DIR = join(DATA_DIR, 'images');
 const STORY_IMAGES_DIR = join(DATA_DIR, 'story-images');
 
 const API_ROOT = 'https://api.elevenlabs.io';
-const MODEL_ID = 'eleven_v3';     // the only model that supports Persian (fas)
+const MODEL_ID = 'eleven_v3';
 const OUT_FMT  = 'mp3_44100_128';
 const VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.75, speed: 0.9 };
 
@@ -77,21 +66,10 @@ function sendJson(res, status, body) {
   res.end(payload);
 }
 
-// ── Auth ──
-// Every route below that touches user data or spends API-key money
-// requires a signed-in Supabase user. The anon key is safe to hold here
-// (it's the same public key the browser uses); this server never sees a
-// password and never holds the service_role key — it only ever asks
-// Supabase "whose token is this," the same check the browser could do,
-// just done server-side so a stolen/forged request can't skip it.
 const authClient = SUPABASE_URL && SUPABASE_ANON_KEY
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
-/** Pull the bearer token off the request and resolve it to a Supabase user.
- *  Returns { user, token } on success; sends 401 and returns null on
- *  failure — callers just do `const auth = await requireAuth(req, res); if
- *  (!auth) return;` and read on. */
 async function requireAuth(req, res) {
   if (!authClient) {
     sendJson(res, 500, { error: 'Server is not configured for sign-in (SUPABASE_URL/SUPABASE_ANON_KEY missing).' });
@@ -111,10 +89,6 @@ async function requireAuth(req, res) {
   return { user: data.user, token };
 }
 
-/** A Postgres client scoped to one user's token. Row Level Security (see
- *  supabase/schema.sql) uses this identity to silently restrict every
- *  select/insert/update/delete to that user's own rows — there is no
- *  manual `.eq('owner_id', ...)` to get wrong or forget. */
 function dbFor(token) {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -125,21 +99,10 @@ function dbError(res, error) {
   sendJson(res, 500, { error: error.message || 'Something went wrong saving that.' });
 }
 
-/**
- * Every outbound call to ElevenLabs or OpenAI goes through here. Plain
- * `fetch` has no overall timeout in Node — if either provider ever hangs,
- * a request would otherwise wait forever and a parent would just see a
- * spinner that never resolves. On timeout or any network-level failure this
- * throws a plain, non-technical Error; callers don't need their own
- * try/catch for that case, only for reading the response once it exists.
- */
 async function fetchWithTimeout(url, options = {}, ms = 20000, externalSignal) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
-  // externalSignal lets a caller (e.g. the browser tab closing, or the
-  // parent cancelling a story mid-generation) cut this short too, without
-  // it looking like a timeout — forwarded rather than passed directly since
-  // this controller also needs to fire on its own timer.
+
   const forwardAbort = () => controller.abort();
   if (externalSignal) {
     if (externalSignal.aborted) controller.abort();
@@ -158,12 +121,6 @@ async function fetchWithTimeout(url, options = {}, ms = 20000, externalSignal) {
   }
 }
 
-// ── Error handling: technical detail goes in a log file on the server,
-// never to a family member's screen. Whatever actually went wrong —
-// ElevenLabs rejected the key, OpenAI is down, a quota ran out — the
-// person looking at the app just needs "the voice isn't working right
-// now," not the provider's own error text. One generic line per provider,
-// always; the log is where the real answer lives.
 const ELEVENLABS_FRIENDLY_ERROR = "The voice isn't working right now. Try again in a bit.";
 const OPENAI_FRIENDLY_ERROR     = "Couldn't do that right now. Try again in a bit.";
 const ERROR_LOG_FILE = join(DATA_DIR, 'errors.log');
@@ -174,10 +131,9 @@ async function logServerError(provider, detail) {
   try {
     await mkdir(DATA_DIR, { recursive: true });
     await appendFile(ERROR_LOG_FILE, line + '\n');
-  } catch { /* logging must never be the reason a request fails */ }
+  } catch {  }
 }
 
-/** Log the real detail, send only the generic message for that provider. */
 async function sendProviderError(res, status, provider, detail) {
   await logServerError(provider, detail);
   sendJson(res, status, { error: provider === 'elevenlabs' ? ELEVENLABS_FRIENDLY_ERROR : OPENAI_FRIENDLY_ERROR });
@@ -190,7 +146,6 @@ function requireKey(res) {
   return false;
 }
 
-/** Turn an ElevenLabs error response into something worth logging. */
 async function upstreamError(upstream) {
   if (upstream.status === 401) return 'ElevenLabs rejected the API key in ELEVENLABS_API_KEY.';
   if (upstream.status === 429) return 'ElevenLabs rate limit or quota reached.';
@@ -253,11 +208,7 @@ async function handleTts(req, res) {
   res.end(audio);
 }
 
-/**
- * Story generation. The grown-up may type the request in English or Persian —
- * the story always comes back in Persian, because that is the point of the app.
- */
-const WORDS_PER_MINUTE = 130;   // measured against narration at speed 0.9
+const WORDS_PER_MINUTE = 130;
 
 function buildSystemPrompt(minutes) {
   const words = Math.round(minutes * WORDS_PER_MINUTE);
@@ -310,10 +261,6 @@ Rules for the story itself:
 - The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them across the whole story, right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in Persian, and they belong in "text", never in "image". Don't overuse them — most sentences need none.`;
 }
 
-/**
- * A developmental focus is a teaching goal, not a plot. The story should model
- * the behaviour through a character a child can copy, never lecture the child.
- */
 function buildUserPrompt({ prompt, focus }) {
   const parts = [];
   if (focus) {
@@ -354,11 +301,6 @@ async function handleStory(req, res, auth) {
     return sendJson(res, 400, { error: 'Pick a focus or say what the story is about.' });
   }
 
-  // The same request (same focus/prompt/length) always gets the same story
-  // — small children want *that* story again, not a new one — and it's
-  // cached per-owner (unique(owner_id, cache_key) in the schema, enforced
-  // by RLS on every query here), so whoever in this account asks first pays
-  // for it, and asking again from any of their devices is free and instant.
   const cacheKey = [
     minutes, focus,
     String(prompt).trim().toLowerCase().replace(/\s+/g, ' '),
@@ -369,12 +311,6 @@ async function handleStory(req, res, auth) {
   if (lookupErr) return dbError(res, lookupErr);
   if (existing) return sendJson(res, 200, existing);
 
-  // A story now takes 20-40s (text, then a picture per scene) — long enough
-  // that a parent cancelling mid-wait is normal, not an edge case. Rather
-  // than let the browser just walk away while the OpenAI calls keep running
-  // (and getting paid for) in the background, this ties every upstream call
-  // to the request's own lifetime: the moment the connection closes, any
-  // fetch still in flight aborts too, and nothing past that point runs.
   const clientGone = new AbortController();
   req.on('close', () => clientGone.abort());
   const bail = () => clientGone.signal.aborted;
@@ -387,9 +323,7 @@ async function handleStory(req, res, auth) {
     },
     body: JSON.stringify({
       model: OPENAI_STORY_MODEL,
-      // minimal, not off: the full model doesn't need to deliberate for a
-      // task like this, and skipping reasoning keeps this a few seconds
-      // rather than tens of seconds, which matters when a child is waiting.
+
       reasoning_effort: 'minimal',
       messages: [
         { role: 'system', content: buildSystemPrompt(minutes) },
@@ -397,14 +331,14 @@ async function handleStory(req, res, auth) {
       ],
     }),
   }, 30000, clientGone.signal);
-  if (bail()) return;   // cancelled while writing the story — no one's listening
+  if (bail()) return;
 
   if (!upstream.ok) {
     let detail = `OpenAI error ${upstream.status}.`;
     try {
       const body = await upstream.json();
       detail = body?.error?.message || detail;
-    } catch { /* non-JSON error body */ }
+    } catch {  }
     return sendProviderError(res, upstream.status, 'openai', detail);
   }
 
@@ -422,19 +356,6 @@ async function handleStory(req, res, auth) {
     return sendProviderError(res, 502, 'openai', `Malformed scenes JSON: ${jsonText.slice(0, 500)}`);
   }
 
-  // One illustration per scene, all in parallel — this is what makes the
-  // story watchable, not just listenable, but it's also the slow part: it
-  // can take as long as the story text itself. It runs after the text comes
-  // back (a scene needs its "image" line first) rather than blocking on it.
-  // Each scene is generated by an independent call with no memory of the
-  // others, so "characters" (the same fixed description of what everyone
-  // looks like) rides along on every single one — otherwise a character's
-  // hair, gender, or outfit can silently change between scenes.
-  //
-  // A picture is worth one retry before giving up on it — most failures
-  // here are transient (a timeout, a momentary rate limit), and a retry
-  // clears the great majority of them, which is worth it since a scene
-  // with no picture at all is the exact thing this is meant to prevent.
   const images = await Promise.all(scenes.map(async s => {
     if (!s.image) return null;
     const fullPrompt = characters ? `${characters}. ${s.image}` : s.image;
@@ -443,21 +364,13 @@ async function handleStory(req, res, auth) {
       try {
         return await generateSceneImage(fullPrompt, clientGone.signal);
       } catch {
-        /* one retry, then give up on just this scene */
+
       }
     }
     return null;
   }));
-  if (bail()) return;   // cancelled while drawing — no one's listening
+  if (bail()) return;
 
-  // Save each picture as its own file, namespaced under this user's own
-  // folder (same reason card art is a file and not inline JSON: base64 in
-  // a JSON blob that gets read and rewritten on every future story would
-  // only get slower and heavier over time), then save the story row itself
-  // — cached against `cacheKey` above so this exact request is never paid
-  // for or waited on twice. The filename prefix is just a filename, not a
-  // database key, so it can keep using the app's own id scheme — only the
-  // `stories` row itself needs a real uuid, which Postgres generates below.
   const fileId = newId('story');
   const savedScenes = await Promise.all(scenes.map(async (s, i) =>
     images[i]
@@ -500,13 +413,6 @@ async function handleDeleteStory(id, res, auth) {
   }
 }
 
-/**
- * Custom flashcards. A parent types one word, in English or Persian; the
- * server translates it (skipping the call entirely if it's already Farsi
- * script), then asks OpenAI for a flat-vector illustration matching the
- * flashcards already in pictures/. The audio is handled by the existing
- * /api/tts path — this endpoint only returns text + image.
- */
 const TRANSLATE_SYSTEM_PROMPT = `You help build Persian flashcards for a 3-year-old.
 
 Given one word or short phrase, reply with ONLY a JSON object, nothing else, no
@@ -583,10 +489,6 @@ async function generateCardImage(wordEn) {
   return b64;
 }
 
-/** One illustration per story scene — a whole moment, not a single centered
- *  subject, so the prompt asks for a scene rather than reusing the flashcard
- *  framing. Each call is independent, so a character's exact look can drift
- *  a little between scenes; the shared style keeps that from looking jarring. */
 async function generateSceneImage(sceneEn, signal) {
   const prompt =
     `${sceneEn}, flat vector illustration for a children's picture book, warm and ` +
@@ -628,7 +530,7 @@ async function openaiErrorMessage(upstream) {
   }
 }
 
-async function handleCard(req, res) {   // gated by requireAuth in the router; needs no user-scoped data itself
+async function handleCard(req, res) {
   if (!OPENAI_KEY) {
     return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set');
   }
@@ -654,20 +556,10 @@ async function handleCard(req, res) {   // gated by requireAuth in the router; n
   }
 }
 
-/**
- * Vocabulary: collections and the cards inside them, one row each, scoped
- * to whoever owns them by Postgres Row Level Security (see
- * supabase/schema.sql) — no manual per-user filtering to get wrong here.
- */
-
 function newId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-/** Namespaced by user so one family's card/scene art isn't a guessable path
- *  for another. Served back out through the plain static handler below,
- *  not an authenticated route — a bearer token can't ride along on a plain
- *  <img src>, so the unguessable per-user folder name is the protection. */
 async function saveImageFile(userId, id, dataUrl, dir = IMAGES_DIR) {
   const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl || '');
   if (!match) throw new Error('That image could not be saved.');
@@ -681,7 +573,7 @@ async function saveImageFile(userId, id, dataUrl, dir = IMAGES_DIR) {
 
 async function deleteImageFile(publicPath) {
   if (!publicPath || !/^\/data\/(images|story-images)\/[^/]+\/[^/]+$/.test(publicPath)) return;
-  try { await unlink(join(ROOT, publicPath)); } catch { /* already gone */ }
+  try { await unlink(join(ROOT, publicPath)); } catch {  }
 }
 
 async function handleVocabularyGet(res, auth) {
@@ -727,8 +619,7 @@ async function handleDeleteCollection(id, res, auth) {
   const db = dbFor(auth.token);
   try {
     const { data: removedCards } = await db.from('cards').select('image').eq('collection_id', id);
-    // Cards for this collection cascade-delete in Postgres (FK on delete
-    // cascade in the schema) once the collection row itself goes.
+
     const { error } = await db.from('collections').delete().eq('id', id);
     if (error) return dbError(res, error);
     await Promise.all((removedCards || []).map(c => deleteImageFile(c.image)));
@@ -747,15 +638,10 @@ async function handleAddCard(collectionId, req, res, auth) {
 
   const db = dbFor(auth.token);
   try {
-    // RLS already keeps this select to the caller's own collections — an
-    // empty result means either it never existed or it isn't theirs, and
-    // either way the right answer is the same "no longer exists" message.
+
     const { data: coll } = await db.from('collections').select('id').eq('id', collectionId).maybeSingle();
     if (!coll) throw new Error('That collection no longer exists.');
 
-    // The filename on disk is just a filename, not a database key, so it
-    // can keep using the app's own id scheme — only the `cards` row itself
-    // needs a real uuid, which Postgres generates on insert below.
     const imagePath = await saveImageFile(auth.user.id, newId('card'), image);
     const card = { owner_id: auth.user.id, collection_id: collectionId, word_fa, word_en: word_en || '', image: imagePath };
 
@@ -782,7 +668,7 @@ async function handleDeleteCard(id, res, auth) {
 }
 
 async function handleStatic(req, res, pathname) {
-  // normalize() collapses any ../ so requests cannot escape the project directory.
+
   const rel  = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
   const file = join(ROOT, rel === '/' ? 'index.html' : rel);
 
@@ -792,6 +678,16 @@ async function handleStatic(req, res, pathname) {
   }
 
   try {
+
+    if (rel === '/auth.js') {
+      const body = (await readFile(file, 'utf8'))
+        .replace('SUPABASE_URL_PLACEHOLDER', SUPABASE_URL || '')
+        .replace('SUPABASE_ANON_KEY_PLACEHOLDER', SUPABASE_ANON_KEY || '');
+      res.writeHead(200, { 'Content-Type': MIME['.js'] });
+      res.end(body);
+      return;
+    }
+
     const body = await readFile(file);
     res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
     res.end(body);
@@ -805,8 +701,7 @@ createServer(async (req, res) => {
   const { pathname } = new URL(req.url, `http://${req.headers.host}`);
 
   try {
-    // Every /api/... route below spends API-key money and/or touches user
-    // data, so every one of them requires a signed-in user first.
+
     if (pathname === '/api/voices'     && req.method === 'GET')  return await handleVoices(req, res);
     if (pathname === '/api/tts'        && req.method === 'POST') return await handleTts(req, res);
 
@@ -862,11 +757,11 @@ createServer(async (req, res) => {
 }).listen(PORT, () => {
   console.log(`Dastaan → http://localhost:${PORT}`);
   if (!API_KEY) {
-    console.warn('\n⚠  ELEVENLABS_API_KEY is not set — the app will load but stay silent.');
+    console.warn('\n⚠  ELEVENLABS_API_KEY is not set. The app will load but stay silent.');
     console.warn('   Restart with: ELEVENLABS_API_KEY=sk_… node server.js\n');
   }
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.warn('\n⚠  SUPABASE_URL/SUPABASE_ANON_KEY are not set — sign-in will fail.');
+    console.warn('\n⚠  SUPABASE_URL/SUPABASE_ANON_KEY are not set. Sign-in will fail.');
     console.warn('   Restart with those set alongside the other env vars.\n');
   }
 });

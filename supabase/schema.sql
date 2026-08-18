@@ -1,13 +1,3 @@
--- ============================================================
--- Dastaan — Supabase schema
--- Run this once in the Supabase SQL Editor (Project → SQL Editor →
--- New query → paste → Run). Mirrors data/vocabulary.json's
--- {collections, cards} and data/stories.json's {stories} shape, but
--- with owner_id + native uuid ids instead of the app's newId() scheme.
--- Row Level Security enforces that every user only ever sees their
--- own rows — no manual WHERE owner_id = ... to get wrong.
--- ============================================================
-
 create table public.collections (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
@@ -37,8 +27,6 @@ create table public.stories (
   unique (owner_id, cache_key)
 );
 
--- Helpful for "give me this user's cards for this collection" and the
--- story cache lookup by key.
 create index cards_owner_collection_idx on public.cards (owner_id, collection_id);
 create index stories_owner_cache_key_idx on public.stories (owner_id, cache_key);
 

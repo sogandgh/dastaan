@@ -135,7 +135,7 @@ form.addEventListener('submit', async e => {
     if (mode === 'signup') {
       const { session } = await signUp(email, password);
       if (!session) {
-        statusEl.textContent = `Almost there — check ${email} for a confirmation link.`;
+        statusEl.textContent = `Almost there. Check ${email} for a confirmation link.`;
         submitBtn.disabled = false;
         return;
       }

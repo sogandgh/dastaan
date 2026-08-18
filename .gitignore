@@ -8,6 +8,7 @@
 # These patterns exist so an accidental local config file can't be committed.
 .env
 .env.*
+!.env.example
 config.local.js
 *.key
 
