@@ -142,8 +142,6 @@ form.addEventListener('submit', async e => {
     } else {
       await signIn(email, password);
     }
-    statusEl.textContent = "You're in.";
-    await new Promise(r => setTimeout(r, 350));
     window.location.href = 'index.html';
   } catch (err) {
     submitBtn.disabled = false;
