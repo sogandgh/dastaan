@@ -1,8 +1,9 @@
 /* ============================================================
    Dastaan — sign in / create account
-   Lily stands on the same stage she does everywhere else in the app;
-   this page is just what's beside her here. Colors, radii, and shadows
-   (none) all come from style.css's tokens — nothing new invented.
+   Just the brand and the form, centered — nothing else competing for
+   attention on the one screen that's purely a gate, not the product.
+   Colors, radii, and shadows (none) all come from style.css's tokens —
+   nothing new invented.
 ============================================================ */
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -37,72 +38,40 @@ button, input { font: inherit; color: inherit; }
   border-radius: 6px;
 }
 
-/* ── Stage: a title above, Lily and the form below — the same
-   character-on-a-stage composition every other screen uses, with the
-   brand as the one big thing on the page instead of a corner mark. ── */
+/* ── Stage: brand above, form below, both centered as one column.
+   A generous gap between them so the panel doesn't read as glued to
+   the title — it's the only other thing on the page. ── */
 .login-stage {
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: clamp(8px, 2vw, 16px);
-  padding: 20px clamp(16px, 4vw, 40px);
+  justify-content: center;
+  gap: clamp(28px, 6vh, 48px);
+  padding: 40px clamp(16px, 4vw, 40px);
 }
 
 .login-hero { text-align: center; }
 .login-title {
-  font-size: clamp(1.7rem, 4vw, 2.3rem);
+  font-size: clamp(2rem, 5vw, 2.6rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--coral);
 }
 .login-subtitle {
-  margin-top: 4px;
-  font-size: 0.92rem;
+  margin-top: 6px;
+  font-size: 0.98rem;
   font-weight: 500;
   color: var(--ink-soft);
 }
 
-.login-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: clamp(20px, 5vw, 60px);
-}
-
-.login-row .lily-holder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  transform: scale(0.8);
-  transform-origin: bottom center;
-  /* transform doesn't shrink the box it's applied to, so the holder still
-     reserves its full unscaled ~635px height (611px stage + gap + shadow)
-     even though it paints at 80% of that — with a bottom transform-origin
-     the leftover ~127px of dead space sits invisibly above the character,
-     stretching the whole row and shoving the panel down with it. Pull that
-     reserved space back so the row's real height matches what's visible. */
-  margin-top: -127px;
-}
-/* Same contact shadow as the rest of the app — she's standing here, not floating. */
-.login-row .lily-holder::after {
-  content: '';
-  width: 100px;
-  height: 14px;
-  border-radius: 50%;
-  background: rgba(34, 48, 74, 0.14);
-}
-
 .login-panel {
-  width: min(400px, 100%);
+  width: min(420px, 100%);
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  padding: clamp(22px, 4vw, 32px);
+  padding: clamp(24px, 4vw, 34px);
 }
 
 .login-tabs {
@@ -223,10 +192,8 @@ button, input { font: inherit; color: inherit; }
 .forgot-link:hover { color: var(--ink); }
 .forgot-link[hidden] { display: none; }
 
-@media (max-width: 760px) {
-  .login-stage { padding-top: 24px; gap: 12px; }
-  .login-row { flex-direction: column; gap: 4px; }
-  .login-row .lily-holder { transform: scale(0.6); margin-top: -254px; margin-bottom: -30px; }
+@media (max-width: 480px) {
+  .login-stage { gap: 28px; padding: 28px 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
