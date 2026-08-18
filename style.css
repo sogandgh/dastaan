@@ -2,9 +2,9 @@
 
   --sky-lo:    #F8EDEB;
   --paper:     #FFFFFF;
-  --ink:       #22304A;
-  --ink-soft:  #6A7A94;
-  --ink-faint: #9FADC2;
+  --ink:       #2E2A28;
+  --ink-soft:  #6E655F;
+  --ink-faint: #A69C93;
   --blue:      #FFB5A7;
   --blue-deep: #3D7566;
   --mint:      #BEE3DB;
@@ -14,7 +14,7 @@
   --warm-lo:   #FCD5CE;
   --amber:     #B85A47;
 
-  --line:      rgba(34, 48, 74, 0.10);
+  --line:      rgba(46, 42, 40, 0.10);
 
   --r-sm: 10px;
   --r-md: 22px 12px 22px 12px;
@@ -27,6 +27,8 @@
 
   --ease: cubic-bezier(0.32, 0.72, 0.24, 1);
   --mode-shift: 720ms var(--ease);
+
+  --lang-font: 'Vazirmatn', sans-serif;
 }
 
 *, *::before, *::after {
@@ -119,40 +121,32 @@ body[data-mode="play"] .backdrop {
   min-width: 0;
   max-width: 100%;
 }
-.brand-fa {
+.brand-mark {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
+  padding: 14px 16px;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 14px;
   background: var(--blue);
   color: var(--ink);
-  font-family: 'Vazirmatn', sans-serif;
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 .brand-en {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-  min-width: 0;
-}
-.brand-en strong,
-.brand-en small {
+  font-family: var(--lang-font);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.brand-en strong {
-  font-size: 0.98rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.brand-en small {
-  font-size: 0.72rem;
-  font-weight: 400;
-  color: var(--ink-soft);
+  min-width: 0;
 }
 
 .icon-btn.back-btn {
@@ -246,7 +240,7 @@ body[data-mode="setup"] .stage {
   height: 14px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: rgba(34, 48, 74, 0.14);
+  background: rgba(46, 42, 40, 0.14);
 }
 
 .panel {
@@ -464,7 +458,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
 }
 
 .card-word {
-  font-family: 'Vazirmatn', sans-serif;
+  font-family: var(--lang-font);
   font-size: clamp(2.5rem, 8vw, 3.6rem);
   font-weight: 900;
   line-height: 1.35;
@@ -813,7 +807,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   box-shadow: var(--shadow-lg);
 }
 .story-panel p {
-  font-family: 'Vazirmatn', sans-serif;
+  font-family: var(--lang-font);
   font-size: 1.05rem;
   font-weight: 500;
   line-height: 1.8;
@@ -937,23 +931,6 @@ body.preparing .stop-btn { display: none; }
 }
 .ghost-btn:hover { background: var(--sand); }
 
-.diagnostics-output[hidden] { display: none; }
-.diagnostics-output {
-  display: block;
-  width: 100%;
-  height: 140px;
-  margin-top: 14px;
-  padding: 12px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--line);
-  background: #F8FAFC;
-  color: var(--ink-soft);
-  font-family: ui-monospace, monospace;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  resize: none;
-}
-
 .sheet-danger h2 { color: #D64545; }
 
 .sheet-actions .danger-btn {
@@ -980,7 +957,7 @@ body.preparing .stop-btn { display: none; }
   background: #fff;
 }
 .card-preview p {
-  font-family: 'Vazirmatn', sans-serif;
+  font-family: var(--lang-font);
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--ink);

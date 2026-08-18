@@ -1,10 +1,11 @@
 import {
-  synthesize, prefetch, listVoices, clearCache, getVoice, setVoice,
+  synthesize, prefetch, listVoices, getVoice, setVoice, getLanguage, setLanguage,
   getStory, listStories, deleteStory, normalizeScenes,
   createCollection, deleteCollection, getVocabulary,
   generateCard, saveCard, listCards, deleteCard,
 } from './tts.js';
 import { getSession, signOut as authSignOut } from './auth.js';
+import { LANGUAGES, languageOf } from './languages.js';
 
 if (!(await getSession())) {
   location.replace('login.html');
@@ -21,38 +22,8 @@ const stageEl   = document.querySelector('.lily-stage');
 const levelsEl  = document.getElementById('levels');
 const toastEl   = document.getElementById('toast');
 
-const LOG_KEY = 'lily.debug.log';
-const LOG_MAX = 60;
-
 function logEvent(kind, detail = {}) {
   console.log('[lily]', kind, detail);
-  try {
-    const log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
-    log.push({ t: new Date().toISOString(), kind, ...detail });
-    while (log.length > LOG_MAX) log.shift();
-    localStorage.setItem(LOG_KEY, JSON.stringify(log));
-  } catch { }
-}
-
-async function copyDiagnostics() {
-  let log = [];
-  try { log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { }
-  const text = JSON.stringify({
-    when: new Date().toISOString(),
-    userAgent: navigator.userAgent,
-    audioContextState: lipSync.ctx?.state || 'not created yet',
-    voice: getVoice(),
-    log,
-  }, null, 2);
-
-  try {
-    await navigator.clipboard.writeText(text);
-    showError('Copied.');
-  } catch {
-    diagnosticsOutput.value = text;
-    diagnosticsOutput.hidden = false;
-    diagnosticsOutput.select();
-  }
 }
 
 const lipSync = {
@@ -324,35 +295,108 @@ async function speakStory(scenes) {
   return 'finished';
 }
 
-const categories = {
-  animals: [
-    { img: 'pictures/animals/bird.png',    word: 'پرنده' },
-    { img: 'pictures/animals/cat.png',     word: 'گربه'  },
-    { img: 'pictures/animals/cow.png',     word: 'گاو'   },
-    { img: 'pictures/animals/dog.png',     word: 'سگ'    },
-    { img: 'pictures/animals/fish.png',    word: 'ماهی'  },
-    { img: 'pictures/animals/hourse.webp', word: 'اسب'   },
-    { img: 'pictures/animals/mouse.png',   word: 'موش'   },
-    { img: 'pictures/animals/pig.png',     word: 'خوک'   },
-    { img: 'pictures/animals/rabbit.png',  word: 'خرگوش' },
-  ],
-  face: [
-    { img: 'pictures/face/ear.png',     word: 'گوش'   },
-    { img: 'pictures/face/eye.png',     word: 'چشم'   },
-    { img: 'pictures/face/eyebrow.jpg', word: 'ابرو'  },
-    { img: 'pictures/face/hair.png',    word: 'مو'    },
-    { img: 'pictures/face/hand.png',    word: 'دست'   },
-    { img: 'pictures/face/leg.jpg',     word: 'پا'    },
-    { img: 'pictures/face/lips.png',    word: 'لب'    },
-    { img: 'pictures/face/neck.jpg',    word: 'گردن'  },
-    { img: 'pictures/face/nose.jpg',    word: 'بینی'  },
-    { img: 'pictures/face/tongue.jpg',  word: 'زبان'  },
-    { img: 'pictures/face/tooth.png',   word: 'دندان' },
-  ],
+const BUILTIN_WORDS = {
+  fa: {
+    animals: [
+      { img: 'pictures/animals/bird.png',    word: 'پرنده' },
+      { img: 'pictures/animals/cat.png',     word: 'گربه'  },
+      { img: 'pictures/animals/cow.png',     word: 'گاو'   },
+      { img: 'pictures/animals/dog.png',     word: 'سگ'    },
+      { img: 'pictures/animals/fish.png',    word: 'ماهی'  },
+      { img: 'pictures/animals/hourse.webp', word: 'اسب'   },
+      { img: 'pictures/animals/mouse.png',   word: 'موش'   },
+      { img: 'pictures/animals/pig.png',     word: 'خوک'   },
+      { img: 'pictures/animals/rabbit.png',  word: 'خرگوش' },
+    ],
+    face: [
+      { img: 'pictures/face/ear.png',     word: 'گوش'   },
+      { img: 'pictures/face/eye.png',     word: 'چشم'   },
+      { img: 'pictures/face/eyebrow.jpg', word: 'ابرو'  },
+      { img: 'pictures/face/hair.png',    word: 'مو'    },
+      { img: 'pictures/face/hand.png',    word: 'دست'   },
+      { img: 'pictures/face/leg.jpg',     word: 'پا'    },
+      { img: 'pictures/face/lips.png',    word: 'لب'    },
+      { img: 'pictures/face/neck.jpg',    word: 'گردن'  },
+      { img: 'pictures/face/nose.jpg',    word: 'بینی'  },
+      { img: 'pictures/face/tongue.jpg',  word: 'زبان'  },
+      { img: 'pictures/face/tooth.png',   word: 'دندان' },
+    ],
+  },
+  sv: {
+    animals: [
+      { img: 'pictures/animals/bird.png',    word: 'fågel' },
+      { img: 'pictures/animals/cat.png',     word: 'katt'  },
+      { img: 'pictures/animals/cow.png',     word: 'ko'    },
+      { img: 'pictures/animals/dog.png',     word: 'hund'  },
+      { img: 'pictures/animals/fish.png',    word: 'fisk'  },
+      { img: 'pictures/animals/hourse.webp', word: 'häst'  },
+      { img: 'pictures/animals/mouse.png',   word: 'mus'   },
+      { img: 'pictures/animals/pig.png',     word: 'gris'  },
+      { img: 'pictures/animals/rabbit.png',  word: 'kanin' },
+    ],
+    face: [
+      { img: 'pictures/face/ear.png',     word: 'öra'      },
+      { img: 'pictures/face/eye.png',     word: 'öga'      },
+      { img: 'pictures/face/eyebrow.jpg', word: 'ögonbryn' },
+      { img: 'pictures/face/hair.png',    word: 'hår'      },
+      { img: 'pictures/face/hand.png',    word: 'hand'     },
+      { img: 'pictures/face/leg.jpg',     word: 'ben'      },
+      { img: 'pictures/face/lips.png',    word: 'läppar'   },
+      { img: 'pictures/face/neck.jpg',    word: 'hals'     },
+      { img: 'pictures/face/nose.jpg',    word: 'näsa'     },
+      { img: 'pictures/face/tongue.jpg',  word: 'tunga'    },
+      { img: 'pictures/face/tooth.png',   word: 'tand'     },
+    ],
+  },
 };
 
 const BUILTIN_CATEGORIES = ['animals', 'face'];
 const isBuiltinCategory = cat => BUILTIN_CATEGORIES.includes(cat);
+
+const categories = {};
+let currentLanguage = getLanguage();
+
+function loadBuiltinWords() {
+  const words = BUILTIN_WORDS[currentLanguage] || BUILTIN_WORDS.fa;
+  categories.animals = words.animals;
+  categories.face = words.face;
+}
+loadBuiltinWords();
+
+function applyLanguageToUI() {
+  const lang = languageOf(currentLanguage);
+  const brandNative = document.getElementById('brand-native');
+  brandNative.textContent = lang.native;
+  brandNative.dir = lang.dir;
+  brandNative.lang = lang.code;
+  document.getElementById('learn-heading').textContent = `Learn ${lang.name}`;
+  document.getElementById('learn-subheading').textContent = `Tap a card to hear the word in ${lang.name}.`;
+  document.documentElement.style.setProperty('--lang-font', lang.font);
+  [dispWord, storyTextEl, cardPreviewWord].forEach(el => {
+    if (!el) return;
+    el.dir = lang.dir;
+    el.lang = lang.code;
+  });
+}
+
+async function setActiveLanguage(code) {
+  if (code === currentLanguage) return;
+  currentLanguage = LANGUAGES[code] ? code : 'fa';
+  setLanguage(currentLanguage);
+  loadBuiltinWords();
+  applyLanguageToUI();
+
+  Object.keys(categories).forEach(key => { if (!isBuiltinCategory(key)) delete categories[key]; });
+  customCollections = [];
+  currentCategory = 'animals';
+  currentIndex = 0;
+  document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
+  document.querySelector('.deck-tab[data-cat="animals"]')?.classList.add('is-active');
+  updateDisplay(false);
+
+  await loadCollections();
+  if (document.body.dataset.mode === 'setup') renderHistory();
+}
 
 let currentCategory = 'animals';
 let currentIndex = 0;
@@ -739,13 +783,27 @@ function closeConfirmDialog() {
   confirmDialogEl.classList.remove('open');
 }
 
-const settingsEl  = document.getElementById('settings');
-const voiceSelect = document.getElementById('voice-lily');
-const statusEl    = document.getElementById('settings-status');
-const diagnosticsOutput = document.getElementById('diagnostics-output');
+const settingsEl    = document.getElementById('settings');
+const voiceSelect   = document.getElementById('voice-lily');
+const languageSelect = document.getElementById('language-select');
+const statusEl      = document.getElementById('settings-status');
 
 function openSettings()  { settingsEl.classList.add('open'); refreshVoices(); }
 function closeSettings() { settingsEl.classList.remove('open'); }
+
+function renderLanguageSelect() {
+  languageSelect.innerHTML = '';
+  Object.values(LANGUAGES).forEach(lang => {
+    const o = document.createElement('option');
+    o.value = lang.code;
+    o.textContent = lang.name;
+    if (lang.code === currentLanguage) o.selected = true;
+    languageSelect.appendChild(o);
+  });
+}
+renderLanguageSelect();
+
+languageSelect.addEventListener('change', () => setActiveLanguage(languageSelect.value));
 
 async function refreshVoices() {
   statusEl.textContent = 'Loading voices…';
@@ -776,12 +834,6 @@ async function refreshVoices() {
 }
 
 voiceSelect.addEventListener('change', () => setVoice(voiceSelect.value));
-
-async function clearAudioCache() {
-  await clearCache();
-  statusEl.textContent = 'Saved audio cleared.';
-  statusEl.classList.remove('error');
-}
 
 let toastTimer = null;
 function showError(msg) {
@@ -1075,7 +1127,7 @@ newWordInput.addEventListener('keydown', e => { if (e.key === 'Enter') generateN
 Object.assign(window, {
   setMode, setCategory, navigate, sayWord, tapLily,
   startStory, togglePause, leaveStory,
-  openSettings, closeSettings, clearAudioCache, copyDiagnostics, handleSignOut,
+  openSettings, closeSettings, handleSignOut,
   openNewCollection, closeNewCollection, submitNewCollection,
   openAddWordForCurrent, closeAddWord, generateNewWord, retryNewWord, confirmNewWord,
   deleteCurrentCard, closeConfirmDialog,
@@ -1096,6 +1148,7 @@ document.querySelectorAll('.sheet-overlay').forEach(overlay => {
   });
 });
 
+applyLanguageToUI();
 renderThemes();
 renderLengths();
 renderHistory();

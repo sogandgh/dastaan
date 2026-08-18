@@ -1,6 +1,8 @@
 import { getAccessToken } from './auth.js';
+import { DEFAULT_LANGUAGE } from './languages.js';
 
 const LS_VOICE = 'lily.elevenlabs.voice';
+const LS_LANGUAGE = 'lily.language';
 const CACHE_NS = 'eleven_v3';
 
 export function getVoice() {
@@ -10,6 +12,14 @@ export function getVoice() {
 export function setVoice(voiceId) {
   if (voiceId) localStorage.setItem(LS_VOICE, voiceId);
   else localStorage.removeItem(LS_VOICE);
+}
+
+export function getLanguage() {
+  return localStorage.getItem(LS_LANGUAGE) || DEFAULT_LANGUAGE;
+}
+
+export function setLanguage(code) {
+  localStorage.setItem(LS_LANGUAGE, code);
 }
 
 const DB_NAME = 'lily-tts';
@@ -62,18 +72,6 @@ async function idbSet(storeName, key, value) {
 
 const cacheGet = key       => idbGet(STORE, key);
 const cacheSet = (key, blob) => idbSet(STORE, key, blob);
-
-export async function clearCache() {
-  const db = await openDB();
-  await new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).clear();
-    tx.oncomplete = resolve;
-    tx.onerror    = () => reject(tx.error);
-  });
-  objectUrls.forEach(url => URL.revokeObjectURL(url));
-  objectUrls.clear();
-}
 
 const objectUrls = new Map();
 
@@ -136,7 +134,7 @@ export async function getStory({ prompt = '', focus = '', minutes = 1, label = '
   const res = await apiFetch('/api/story', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, focus, minutes, label }),
+    body: JSON.stringify({ prompt, focus, minutes, label, language: getLanguage() }),
     signal,
   });
   if (!res.ok) throw new Error(await describeError(res));
@@ -154,7 +152,7 @@ export function normalizeScenes(rec) {
 
 export async function listStories() {
   try {
-    const res = await apiFetch('/api/stories');
+    const res = await apiFetch(`/api/stories?language=${encodeURIComponent(getLanguage())}`);
     if (!res.ok) return [];
     const { stories } = await res.json();
     return (stories || []).map(r => ({ ...r, _key: r.id }));
@@ -174,7 +172,7 @@ export async function createCollection(name) {
   const res = await apiFetch('/api/collections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, language: getLanguage() }),
   });
   if (!res.ok) throw new Error(await describeError(res));
   const coll = await res.json();
@@ -203,7 +201,7 @@ export async function generateCard(word) {
   const res = await apiFetch('/api/card', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ word }),
+    body: JSON.stringify({ word, language: getLanguage() }),
   });
   if (!res.ok) throw new Error(await describeError(res));
 
@@ -259,7 +257,7 @@ export async function deleteCard(key) {
 }
 
 async function fetchVocabulary() {
-  const res = await apiFetch('/api/vocabulary');
+  const res = await apiFetch(`/api/vocabulary?language=${encodeURIComponent(getLanguage())}`);
   if (!res.ok) throw new Error(await describeError(res));
   return res.json();
 }

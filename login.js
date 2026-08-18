@@ -122,7 +122,7 @@ form.addEventListener('submit', async e => {
 
   if (mode === 'signup') {
     const allMet = RULES.every(([, , test]) => test(password));
-    if (!allMet) { updatePasswordRules(); return fail('Doesn’t meet the requirements above.'); }
+    if (!allMet) { updatePasswordRules(); return fail('Password doesn’t meet the requirements above.'); }
     if (password !== confirmIn.value) return fail("Passwords don't match.");
   } else if (!password) {
     return fail('Enter your password.');
@@ -160,7 +160,7 @@ forgotBtn.addEventListener('click', async () => {
   forgotBtn.disabled = true;
   try {
     await resetPassword(email);
-    statusEl.textContent = `Sent, if ${email} has an account.`;
+    statusEl.textContent = `Reset link sent to ${email}, if it has an account.`;
   } catch (err) {
     fail(err.message);
   } finally {

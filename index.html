@@ -26,11 +26,8 @@
     </button>
 
     <div class="brand">
-      <span class="brand-fa" dir="rtl" lang="fa">فارسی</span>
-      <span class="brand-en">
-        <strong>Dastaan</strong>
-        <small>Persian words &amp; bedtime stories for little ones</small>
-      </span>
+      <span class="brand-mark">Dastaan</span>
+      <strong id="brand-native" class="brand-en"></strong>
     </div>
 
     <div class="modes" role="tablist" aria-label="Mode">
@@ -102,8 +99,8 @@
 
     <section class="panel panel-learn" id="panel-learn">
       <div class="learn-head">
-        <h1>Learn Farsi</h1>
-        <p>Tap a card to hear the word in Persian.</p>
+        <h1 id="learn-heading"></h1>
+        <p id="learn-subheading"></p>
       </div>
 
       <div class="deck-row">
@@ -281,8 +278,12 @@
 
   <div class="sheet-overlay" id="settings">
     <div class="sheet">
-      <h2>Voice</h2>
-      <p class="note">Voices come from your ElevenLabs account.</p>
+      <h2>Settings</h2>
+
+      <label class="field">
+        <span class="field-label">Language</span>
+        <select id="language-select"></select>
+      </label>
 
       <label class="field">
         <span class="field-label">Narrator voice</span>
@@ -291,11 +292,7 @@
 
       <p class="note" id="settings-status"></p>
 
-      <textarea class="diagnostics-output" id="diagnostics-output" readonly hidden></textarea>
-
       <div class="sheet-actions">
-        <button class="ghost-btn" onclick="clearAudioCache()">Clear saved audio</button>
-        <button class="ghost-btn" onclick="copyDiagnostics()">Copy diagnostics</button>
         <button class="ghost-btn" onclick="handleSignOut()">Sign out</button>
         <button class="start-btn" onclick="closeSettings()">Done</button>
       </div>

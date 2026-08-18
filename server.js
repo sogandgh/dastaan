@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
+import { LANGUAGES, DEFAULT_LANGUAGE, languageOf } from './languages.js';
 
 function loadEnvFile(path) {
   let content;
@@ -210,11 +211,18 @@ async function handleTts(req, res) {
 
 const WORDS_PER_MINUTE = 130;
 
-function buildSystemPrompt(minutes) {
+function buildSystemPrompt(minutes, language = DEFAULT_LANGUAGE) {
+  const lang = languageOf(language);
   const words = Math.round(minutes * WORDS_PER_MINUTE);
-  return `You write bedtime stories in Persian (Farsi) for a 3-year-old.
+  const connectives = ` Write the way a parent actually talks out
+  loud telling a bedtime story — natural, flowing sentences with real connective words
+  (${lang.connectives}), not a string of short clipped fragments. Varying sentence
+  length is fine; choppiness is not.`;
+  const typingNote = lang.typingNote ? `\n- ${lang.typingNote}` : '';
+  const cultureNote = `\n- Don't tie the story to ${lang.cultureNote} culture (names included) unless the request\n  asks for that — keep it global.`;
+  return `You write bedtime stories in ${lang.name} for a 3-year-old.
 
-The request may be written in English or in Persian. Either way, always write the story in Persian.
+The request may be written in English or in ${lang.name}. Either way, always write the story in ${lang.name}.
 
 Reply with ONLY a JSON object, nothing else, no markdown fences:
 {"characters": "...", "scenes": [{"text": "...", "image": "..."}, ...]}
@@ -231,7 +239,7 @@ everything needed for the character to look like the same person or animal every
   personality or plot, only what a repeated illustration needs to look consistent.
 - "scenes": 3 to 6 of them, at natural story-beat boundaries (a scene ends when the
   setting, action, or moment changes) — never mid-sentence. Roughly equal in length.
-  - "text": that scene's narration, in Persian script. No title, no transliteration, no
+  - "text": that scene's narration, in ${lang.name}. No title, no transliteration, no
     English, no markdown, no quotation marks. Concatenated in order, the scenes' "text"
     fields are the whole story.
   - "image": a short English description (10-20 words) of just that scene's setting and
@@ -241,24 +249,18 @@ everything needed for the character to look like the same person or animal every
 
 Rules for the story itself:
 - About ${words} words total across all scenes — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
-- Very simple Farsi words a 3-year-old knows. Write the way a parent actually talks out
-  loud telling a bedtime story — natural, flowing sentences with real connective words
-  (و، چون، بعد، تا این‌که), not a string of short clipped fragments. Varying sentence
-  length is fine; choppiness is not.
+- Very simple ${lang.name} words a 3-year-old knows.${connectives}
 - One or two main characters, named, with a small, easy-to-follow problem or adventure for them — something they actually have to work at or figure out, not something that just happens to them.
 - Keep the story focused on one main idea. Every event should follow from a *reason* given earlier in the story — not from convenience. Don't introduce a new creature, object, or character partway through unless the story already gave a reason it would be there; a stray animal wandering in to make a sound is exactly the kind of random detail to avoid.
 - Playful sounds, actions, and dialogue to bring it to life, woven naturally into full sentences rather than standing alone as fragments.
 - Vivid but simple descriptions — concrete things a toddler has actually seen, not abstract ideas.
 - Warm and gentle throughout. Never scary, sad, violent, or sarcastic. A satisfying, happy ending.
-- Don't moralise, and don't let a lesson feel forced — if the story is teaching something, it should come through what happens, never through being told.
-- Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
-- Get the spelling of every word right, especially Persian names for animals, foods,
+- Don't moralise, and don't let a lesson feel forced — if the story is teaching something, it should come through what happens, never through being told.${typingNote}
+- Get the spelling of every word right, especially ${lang.name} names for animals, foods,
   and objects that aren't the everyday obvious ones — this gets read aloud by a
   text-to-speech voice, which pronounces exactly what's written, so a misspelled or
-  invented word comes out mispronounced.
-- Don't tie the story to Iran or Iranian culture (names included) unless the request
-  asks for that — keep it global.
-- The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them across the whole story, right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in Persian, and they belong in "text", never in "image". Don't overuse them — most sentences need none.`;
+  invented word comes out mispronounced.${cultureNote}
+- The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them across the whole story, right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in ${lang.name}, and they belong in "text", never in "image". Don't overuse them — most sentences need none.`;
 }
 
 function buildUserPrompt({ prompt, focus }) {
@@ -285,12 +287,13 @@ async function handleStory(req, res, auth) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
 
-  let prompt = '', focus = '', minutes = 1, label = '';
+  let prompt = '', focus = '', minutes = 1, label = '', language = DEFAULT_LANGUAGE;
   try {
-    ({ prompt = '', focus = '', minutes = 1, label = '' } = JSON.parse(Buffer.concat(chunks).toString()));
+    ({ prompt = '', focus = '', minutes = 1, label = '', language = DEFAULT_LANGUAGE } = JSON.parse(Buffer.concat(chunks).toString()));
   } catch {
     return sendJson(res, 400, { error: 'Malformed request body.' });
   }
+  language = normalizeLanguage(language);
 
   minutes = Math.min(5, Math.max(1, Number(minutes) || 1));
   const userPrompt = buildUserPrompt({
@@ -302,7 +305,7 @@ async function handleStory(req, res, auth) {
   }
 
   const cacheKey = [
-    minutes, focus,
+    language, minutes, focus,
     String(prompt).trim().toLowerCase().replace(/\s+/g, ' '),
   ].join('|');
   const { data: existing, error: lookupErr } = await db
@@ -326,7 +329,7 @@ async function handleStory(req, res, auth) {
 
       reasoning_effort: 'minimal',
       messages: [
-        { role: 'system', content: buildSystemPrompt(minutes) },
+        { role: 'system', content: buildSystemPrompt(minutes, language) },
         { role: 'user',   content: userPrompt },
       ],
     }),
@@ -381,6 +384,7 @@ async function handleStory(req, res, auth) {
   const { data: saved, error: insertErr } = await db.from('stories').insert({
     owner_id: auth.user.id,
     cache_key: cacheKey,
+    language,
     label: String(label).trim() || String(prompt).trim() || 'A story',
     minutes,
     characters,
@@ -391,10 +395,15 @@ async function handleStory(req, res, auth) {
   sendJson(res, 200, { id: saved.id, characters, scenes: savedScenes });
 }
 
-async function handleStoriesGet(res, auth) {
+function normalizeLanguage(code) {
+  return LANGUAGES[code] ? code : DEFAULT_LANGUAGE;
+}
+
+async function handleStoriesGet(res, auth, language) {
   const db = dbFor(auth.token);
   const { data, error } = await db
     .from('stories').select('id, label, minutes, characters, scenes, saved_at')
+    .eq('language', normalizeLanguage(language))
     .order('saved_at', { ascending: false });
   if (error) return dbError(res, error);
   sendJson(res, 200, { stories: data.map(s => ({ ...s, savedAt: new Date(s.saved_at).getTime() })) });
@@ -413,23 +422,26 @@ async function handleDeleteStory(id, res, auth) {
   }
 }
 
-const TRANSLATE_SYSTEM_PROMPT = `You help build Persian flashcards for a 3-year-old.
+function buildTranslatePrompt(language) {
+  const lang = languageOf(language);
+  return `You help build ${lang.name} flashcards for a 3-year-old.
 
 Given one word or short phrase, reply with ONLY a JSON object, nothing else, no
 markdown fences:
 {"fa": "...", "en": "..."}
 
-- "fa": the word in Persian (Farsi script), correct and natural, one word or a short
-  phrase a toddler would use. Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).
+- "fa": the word in ${lang.name}, correct and natural, one word or a short
+  phrase a toddler would use.${lang.typingNote ? ' ' + lang.typingNote : ''}
 - "en": a short, simple, literal English translation (one or two words) — used only to
   generate a picture, so keep it concrete and unambiguous (e.g. "apple", not "a healthy
   red fruit").
-- If the input is already Persian, keep "fa" as given (correcting only obvious spelling)
+- If the input is already ${lang.name}, keep "fa" as given (correcting only obvious spelling)
   and just supply "en".
 - If the input is nonsense or not a real word, still make a reasonable best-effort guess
   rather than refusing.`;
+}
 
-async function translateWord(word) {
+async function translateWord(word, language) {
   const upstream = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
@@ -437,7 +449,7 @@ async function translateWord(word) {
       model: OPENAI_MODEL,
       reasoning_effort: 'minimal',
       messages: [
-        { role: 'system', content: TRANSLATE_SYSTEM_PROMPT },
+        { role: 'system', content: buildTranslatePrompt(language) },
         { role: 'user',   content: word },
       ],
     }),
@@ -538,9 +550,9 @@ async function handleCard(req, res) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
 
-  let word = '';
+  let word = '', language = DEFAULT_LANGUAGE;
   try {
-    ({ word = '' } = JSON.parse(Buffer.concat(chunks).toString()));
+    ({ word = '', language = DEFAULT_LANGUAGE } = JSON.parse(Buffer.concat(chunks).toString()));
   } catch {
     return sendJson(res, 400, { error: 'Malformed request body.' });
   }
@@ -548,7 +560,7 @@ async function handleCard(req, res) {
   if (!word) return sendJson(res, 400, { error: 'Type a word first.' });
 
   try {
-    const { fa, en } = await translateWord(word);
+    const { fa, en } = await translateWord(word, normalizeLanguage(language));
     const image = await generateCardImage(en);
     sendJson(res, 200, { word_fa: fa, word_en: en, image: `data:image/png;base64,${image}` });
   } catch (e) {
@@ -576,11 +588,12 @@ async function deleteImageFile(publicPath) {
   try { await unlink(join(ROOT, publicPath)); } catch {  }
 }
 
-async function handleVocabularyGet(res, auth) {
+async function handleVocabularyGet(res, auth, language) {
+  const lang = normalizeLanguage(language);
   const db = dbFor(auth.token);
   const [{ data: collections, error: collErr }, { data: cards, error: cardErr }] = await Promise.all([
-    db.from('collections').select('id, name, created_at'),
-    db.from('cards').select('id, collection_id, word_fa, word_en, image, created_at'),
+    db.from('collections').select('id, name, created_at').eq('language', lang),
+    db.from('cards').select('id, collection_id, word_fa, word_en, image, created_at').eq('language', lang),
   ]);
   if (collErr) return dbError(res, collErr);
   if (cardErr) return dbError(res, cardErr);
@@ -600,8 +613,8 @@ async function readJsonBody(req) {
 }
 
 async function handleCreateCollection(req, res, auth) {
-  let name = '';
-  try { ({ name = '' } = await readJsonBody(req)); }
+  let name = '', language = DEFAULT_LANGUAGE;
+  try { ({ name = '', language = DEFAULT_LANGUAGE } = await readJsonBody(req)); }
   catch { return sendJson(res, 400, { error: 'Malformed request body.' }); }
 
   name = name.trim().slice(0, 40);
@@ -609,7 +622,7 @@ async function handleCreateCollection(req, res, auth) {
 
   const db = dbFor(auth.token);
   const { data, error } = await db
-    .from('collections').insert({ owner_id: auth.user.id, name })
+    .from('collections').insert({ owner_id: auth.user.id, name, language: normalizeLanguage(language) })
     .select('id, name, created_at').single();
   if (error) return dbError(res, error);
   sendJson(res, 200, { id: data.id, name: data.name, createdAt: new Date(data.created_at).getTime() });
@@ -639,11 +652,11 @@ async function handleAddCard(collectionId, req, res, auth) {
   const db = dbFor(auth.token);
   try {
 
-    const { data: coll } = await db.from('collections').select('id').eq('id', collectionId).maybeSingle();
+    const { data: coll } = await db.from('collections').select('id, language').eq('id', collectionId).maybeSingle();
     if (!coll) throw new Error('That collection no longer exists.');
 
     const imagePath = await saveImageFile(auth.user.id, newId('card'), image);
-    const card = { owner_id: auth.user.id, collection_id: collectionId, word_fa, word_en: word_en || '', image: imagePath };
+    const card = { owner_id: auth.user.id, collection_id: collectionId, language: coll.language, word_fa, word_en: word_en || '', image: imagePath };
 
     const { data, error } = await db.from('cards').insert(card).select('id, created_at').single();
     if (error) throw error;
@@ -698,7 +711,7 @@ async function handleStatic(req, res, pathname) {
 }
 
 createServer(async (req, res) => {
-  const { pathname } = new URL(req.url, `http://${req.headers.host}`);
+  const { pathname, searchParams } = new URL(req.url, `http://${req.headers.host}`);
 
   try {
 
@@ -715,11 +728,11 @@ createServer(async (req, res) => {
     }
     if (pathname === '/api/vocabulary' && req.method === 'GET') {
       const auth = await requireAuth(req, res); if (!auth) return;
-      return await handleVocabularyGet(res, auth);
+      return await handleVocabularyGet(res, auth, searchParams.get('language'));
     }
     if (pathname === '/api/stories' && req.method === 'GET') {
       const auth = await requireAuth(req, res); if (!auth) return;
-      return await handleStoriesGet(res, auth);
+      return await handleStoriesGet(res, auth, searchParams.get('language'));
     }
     if (pathname === '/api/collections' && req.method === 'POST') {
       const auth = await requireAuth(req, res); if (!auth) return;

@@ -1,10 +1,10 @@
 # Dastaan
 
-A language learning app for kids built around an animated character that does three things:
+A language learning app for kids built around an animated character. Currently supporting Farsi and Swedish, switchable in Settings, with more languages to come.
 
-**AI-Generated Flashcards.** Create a collection, Colors, Family, whatever your kid is into this week, and add words to it by typing them, in English or Persian. Translated, illustrated, and voiced, all in one step. Tap a card, the character says the word in Farsi.
+**AI-Generated Flashcards.** Create a collection, Colors, Family, whatever your kid is into this week, and add words to it by typing them, in English or in the language you're learning. Translated, illustrated, and voiced, all in one step. Tap a card, the character says the word out loud.
 
-**Tell a bedtime story your way.** Pick a focus like potty training, bedtime, brushing teeth, trying new food, sharing, big feelings and/or type your own idea. The character narrates a short Farsi story built around it, with a generated image for each part of the story, while your kid just watches and listens, no reading required.
+**Tell a bedtime story your way.** Pick a focus like potty training, bedtime, brushing teeth, trying new food, sharing, big feelings and/or type your own idea. The character narrates a short story built around it, in whichever language is active, with a generated image for each part of the story, while your kid just watches and listens, no reading required.
 
 ## Screenshots
 
@@ -14,7 +14,7 @@ A language learning app for kids built around an animated character that does th
 | --- | --- | --- |
 | [Node.js](https://nodejs.org) | 18+ | Runs `server.js` |
 | [ElevenLabs API](https://elevenlabs.io/docs) key | n/a | Text-to-speech model. Needs `text_to_speech` and `voices_read` permissions. Model is `eleven_v3`. |
-| [OpenAI API](https://platform.openai.com/api-keys) key | n/a | writes the Farsi stories, and generates the illustration for each custom flashcard. |
+| [OpenAI API](https://platform.openai.com/api-keys) key | n/a | writes the stories, and generates the illustration for each custom flashcard. |
 | [Supabase](https://supabase.com) project | n/a | Real accounts (sign in/sign up) and where each family's vocabulary/stories live. Free tier is enough. |
 
 ## How to run
