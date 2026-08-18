@@ -19,7 +19,6 @@
 
   <div class="backdrop" aria-hidden="true"></div>
 
-  <!-- ── Top bar: mom's territory, deliberately quiet ── -->
   <header class="topbar">
     <button class="icon-btn back-btn" onclick="leaveStory()" aria-label="Back to story setup">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
@@ -52,7 +51,6 @@
 
   <main class="stage" id="main-stage">
 
-    <!-- ── Lily lives here in every mode; the stage moves around her ── -->
     <div class="lily-holder" id="lily-holder" onclick="tapLily()"
          role="button" tabindex="0" aria-label="Say hi to Lily">
       <div class="lily-stage" aria-hidden="true">
@@ -102,7 +100,6 @@
       </div>
     </div>
 
-    <!-- ── LEARN ── -->
     <section class="panel panel-learn" id="panel-learn">
       <div class="learn-head">
         <h1>Learn Farsi</h1>
@@ -113,7 +110,6 @@
         <div class="deck-tabs" role="tablist" aria-label="Deck" id="deck-tabs">
           <button class="deck-tab is-active" data-cat="animals" onclick="setCategory('animals', this)">Animals</button>
           <button class="deck-tab" data-cat="face" onclick="setCategory('face', this)">Face &amp; body</button>
-          <!-- Collections the parent has created are inserted here -->
         </div>
         <button class="icon-btn add-word-btn" onclick="openNewCollection()" aria-label="Add a collection" title="Add a collection">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
@@ -121,8 +117,6 @@
         </button>
       </div>
 
-      <!-- The card and the "add another word" control are side by side, so
-           adding never covers or crowds the card itself. -->
       <div class="card-row">
         <div class="card-slot">
           <div class="card" id="card" onclick="sayWord()" role="button" tabindex="0"
@@ -141,7 +135,6 @@
             </div>
           </div>
 
-          <!-- Shown instead of the card when a collection has nothing in it yet -->
           <div class="card card-empty" id="card-empty" onclick="openAddWordForCurrent(event)" role="button" tabindex="0" hidden>
             <span class="card-empty-icon">＋</span>
             <p>Add your first word</p>
@@ -168,7 +161,6 @@
       </div>
     </section>
 
-    <!-- ── STORY SETUP (mom) ── -->
     <section class="panel panel-setup" id="panel-setup">
       <div class="setup-form">
       <div class="setup-head">
@@ -200,7 +192,6 @@
       </section>
     </section>
 
-    <!-- ── STORY PLAYING (child watches) ── -->
     <section class="panel panel-play" id="panel-play">
       <div class="playing-meta">
         <span class="playing-theme" id="playing-theme"></span>
@@ -226,9 +217,6 @@
 
   </main>
 
-  <!-- ── Add a word (own card: translated, pictured, and spoken) ──
-       Two states: type a word and generate (nothing saved yet), then
-       preview and either add it for real or try a different word. ── -->
   <div class="sheet-overlay" id="add-word">
     <div class="sheet">
       <h2>Add a word</h2>
@@ -260,7 +248,6 @@
     </div>
   </div>
 
-  <!-- ── Create a new collection (e.g. "Colors", "Family") ── -->
   <div class="sheet-overlay" id="new-collection">
     <div class="sheet">
       <h2>New collection</h2>
@@ -281,7 +268,6 @@
     </div>
   </div>
 
-  <!-- ── Confirm before deleting anything — shared by collections and cards ── -->
   <div class="sheet-overlay" id="confirm-dialog">
     <div class="sheet sheet-danger">
       <h2 id="confirm-title">Delete this?</h2>
@@ -293,7 +279,6 @@
     </div>
   </div>
 
-  <!-- ── Settings ── -->
   <div class="sheet-overlay" id="settings">
     <div class="sheet">
       <h2>Voice</h2>
@@ -306,14 +291,12 @@
 
       <p class="note" id="settings-status"></p>
 
-      <!-- Hidden until copyDiagnostics() can't use the clipboard (this app
-           isn't on https, so that API isn't always available) — then it
-           shows the report pre-selected, ready to copy by hand instead. -->
       <textarea class="diagnostics-output" id="diagnostics-output" readonly hidden></textarea>
 
       <div class="sheet-actions">
         <button class="ghost-btn" onclick="clearAudioCache()">Clear saved audio</button>
         <button class="ghost-btn" onclick="copyDiagnostics()">Copy diagnostics</button>
+        <button class="ghost-btn" onclick="handleSignOut()">Sign out</button>
         <button class="start-btn" onclick="closeSettings()">Done</button>
       </div>
     </div>

@@ -4,20 +4,23 @@ import {
   createCollection, deleteCollection, getVocabulary,
   generateCard, saveCard, listCards, deleteCard,
 } from './tts.js';
+import { getSession, signOut as authSignOut } from './auth.js';
+
+if (!(await getSession())) {
+  location.replace('login.html');
+  await new Promise(() => {});
+}
+
+async function handleSignOut() {
+  await authSignOut();
+  location.href = 'login.html';
+}
 
 const lilyEl    = document.getElementById('lily');
 const stageEl   = document.querySelector('.lily-stage');
 const levelsEl  = document.getElementById('levels');
 const toastEl   = document.getElementById('toast');
 
-// ============================================================
-//   DIAGNOSTICS  — a small rolling log, kept for when audio fails on a
-//   phone we don't have live access to. Nothing here is sent anywhere; it
-//   sits in localStorage until someone taps "Copy diagnostics" in Settings
-//   and pastes it into a message. Only meaningful state changes and
-//   failures are logged (not every successful clip), so it stays useful
-//   without filling up on normal, working days.
-// ============================================================
 const LOG_KEY = 'lily.debug.log';
 const LOG_MAX = 60;
 
@@ -28,12 +31,12 @@ function logEvent(kind, detail = {}) {
     log.push({ t: new Date().toISOString(), kind, ...detail });
     while (log.length > LOG_MAX) log.shift();
     localStorage.setItem(LOG_KEY, JSON.stringify(log));
-  } catch { /* logging must never be the reason something else breaks */ }
+  } catch { }
 }
 
 async function copyDiagnostics() {
   let log = [];
-  try { log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { /* empty log is fine */ }
+  try { log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { }
   const text = JSON.stringify({
     when: new Date().toISOString(),
     userAgent: navigator.userAgent,
@@ -46,20 +49,12 @@ async function copyDiagnostics() {
     await navigator.clipboard.writeText(text);
     showError('Copied. Paste it wherever you’re reporting the issue.');
   } catch {
-    // The clipboard API needs a secure (https) context, which this app
-    // doesn't have — fall back to something that can be copied by hand.
     diagnosticsOutput.value = text;
     diagnosticsOutput.hidden = false;
     diagnosticsOutput.select();
   }
 }
 
-// ============================================================
-//   LIP SYNC  — driven by the audio itself
-//   The mouth used to cycle through canned shapes on a timer, which is why
-//   it looked wrong: it had no relationship to what was being said. Now the
-//   playing audio runs through an analyser and the mouth opens by loudness.
-// ============================================================
 const lipSync = {
   ctx: null,
   analyser: null,
@@ -88,7 +83,6 @@ const lipSync = {
     return true;
   },
 
-  /** Route an <audio> through the analyser. Safe to call repeatedly. */
   attach(audio) {
     if (!this.ensureGraph()) return false;
     if (!this.sources.has(audio)) {
@@ -97,7 +91,7 @@ const lipSync = {
         src.connect(this.analyser);
         this.sources.set(audio, src);
       } catch {
-        return false;   // already routed, or blocked — fall back to a timer
+        return false;
       }
     }
     return true;
@@ -115,12 +109,9 @@ const lipSync = {
       }
       const rms = Math.sqrt(sum / this.buffer.length);
 
-      // Speech sits roughly between 0.015 and 0.18 RMS; stretch that to 0..1
-      // and curve it so ordinary syllables read clearly instead of only peaks.
       let target = Math.min(1, Math.max(0, (rms - 0.012) / 0.15));
       target = Math.pow(target, 0.7);
 
-      // Ease toward the target so the jaw has weight rather than snapping.
       this.level += (target - this.level) * 0.4;
 
       const v = this.level.toFixed(3);
@@ -139,7 +130,6 @@ const lipSync = {
     levelsEl?.style.setProperty('--level', '0');
   },
 
-  /** Pause: hold the mouth shut but keep the clip alive for resuming. */
   freeze() {
     if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
     this.level = 0;
@@ -148,7 +138,6 @@ const lipSync = {
     levelsEl?.style.setProperty('--level', '0');
   },
 
-  /** Used when the analyser is unavailable: a soft, speech-paced flutter. */
   fallback(durationSecs) {
     stageEl.classList.add('talking');
     const started = performance.now();
@@ -164,63 +153,26 @@ const lipSync = {
   },
 };
 
-// ============================================================
-//   AUDIO UNLOCK  — iOS Safari specific
-//   Safari only allows audio.play() when it can trace back, synchronously,
-//   to a real user gesture. Starting a story does `await getStory(...)`
-//   (an LLM call, several seconds) before the first audio.play() — by then
-//   the gesture is long gone, so play() is silently denied and the app
-//   falls back out of story mode with nothing having played.
-//
-//   Priming a *throwaway* Audio element on the first tap (an earlier version
-//   of this fix) didn't hold up: Safari's unlock allowance is scoped to the
-//   specific element that was played via a direct gesture, not to the page
-//   as a whole — a later `new Audio(url)` is a different element and starts
-//   unblessed again. The reliable version reuses ONE element for every clip
-//   the app ever plays (words, greetings, every story chunk), so the exact
-//   element that got blessed on first tap is the same one still playing
-//   five minutes and one LLM call later.
-//
-//   There is a second, separate unlock hiding here: the first time any clip
-//   plays, lip sync routes `sharedAudio` through a Web Audio graph
-//   (createMediaElementSource → analyser → destination) — and from that
-//   moment on, ALL of its sound depends on that AudioContext being
-//   'running', not just on the element being allowed to play. Resuming a
-//   suspended AudioContext also needs a trusted gesture, same as
-//   audio.play(). A story that plays through — text and pictures advancing
-//   right on schedule, no error — but with no sound at all is exactly what
-//   a *still-suspended* context looks like: the element's own play()
-//   already got blessed, so play() succeeds and the clip runs its full
-//   duration on mute, silently. Resuming used to get exactly one
-//   trusted-gesture attempt, ever ({ once: true }) — if that first attempt
-//   didn't fully take (plausible before the audio hardware has warmed up
-//   at all), nothing ever tried again for the rest of that page load.
-//   Every tap now gets another shot at it; resuming an already-running
-//   context is a harmless no-op, so this costs nothing when it's not needed.
-// ============================================================
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
 const sharedAudio = new Audio();
 sharedAudio.preload = 'auto';
 let audioUnlocked = false;
 
 function unlockAudioForSession() {
-  lipSync.ensureGraph();   // safe every time: a no-op once the context is already running
+  lipSync.ensureGraph();
   if (audioUnlocked) return;
   audioUnlocked = true;
   try {
     sharedAudio.src = SILENT_WAV;
     sharedAudio.play().catch(() => {});
-  } catch { /* best effort — a failed unlock just means the old behaviour */ }
+  } catch { }
 }
 document.addEventListener('pointerdown', unlockAudioForSession, { capture: true });
 
-// ============================================================
-//   SPEECH
-// ============================================================
 let currentAudio = null;
 let speakToken   = 0;
 let voicesReady  = null;
-let clipWatchdog = null;   // lets pause suspend the current clip's stall timer
+let clipWatchdog = null;
 let isPaused     = false;
 
 function beginSpeaking() {
@@ -240,8 +192,6 @@ async function resolveVoice() {
 
 function playClip(url, token) {
   return new Promise(resolve => {
-    // Reuse the one blessed element (see AUDIO UNLOCK above) rather than
-    // `new Audio(url)` — a fresh element here would need its own gesture.
     const audio = sharedAudio;
     audio.pause();
     audio.src = url;
@@ -255,10 +205,6 @@ function playClip(url, token) {
       clearTimeout(watchdog);
       clipWatchdog = null;
       lipSync.stop();
-      // 'ended' is the normal case, every single clip — logging that would
-      // just bury the signal. Anything else is exactly what's useful to
-      // have on hand after the fact: what the AudioContext's state actually
-      // was at the moment sound didn't come out.
       if (outcome !== 'ended') {
         logEvent(`clip-${outcome}`, {
           ctxState: lipSync.ctx?.state ?? 'no context',
@@ -269,8 +215,6 @@ function playClip(url, token) {
       resolve(outcome);
     };
 
-    // A paused clip must not trip the stall watchdog, so the arm/disarm is
-    // exposed for togglePause to drive.
     const arm = () => {
       clearTimeout(watchdog);
       const remaining = (audio.duration || 10) - (audio.currentTime || 0);
@@ -281,7 +225,7 @@ function playClip(url, token) {
     const analysed = lipSync.attach(audio);
 
     audio.onloadedmetadata = () => {
-      document.body.classList.remove('preparing');   // sound is about to start
+      document.body.classList.remove('preparing');
       if (analysed) lipSync.start();
       else lipSync.fallback(audio.duration || 2);
       arm();
@@ -300,8 +244,6 @@ function playClip(url, token) {
   });
 }
 
-/** playClip only ever resolves 'ended', 'blocked', 'error', or 'stalled' —
- *  a plain-language line for whichever of the last three actually happened. */
 function describePlaybackError(outcome) {
   if (outcome === 'blocked') return 'Tap once to let it talk, then try again.';
   if (outcome === 'stalled') return "That's taking too long. Try again?";
@@ -323,13 +265,10 @@ async function speakText(text) {
   }
   if (token !== speakToken) return;
 
-  // Previously fire-and-forget — a failure here (blocked, a stall, a
-  // decode error) had nowhere to go and nothing was ever shown for it.
   const outcome = await playClip(url, token);
   if (token === speakToken && outcome !== 'ended') showError(describePlaybackError(outcome));
 }
 
-/** Short opening chunk so narration starts sooner; longer ones after. */
 function splitForNarration(text, firstMax = 150, restMax = 240) {
   const sentences = text.match(/[^.؟!…]+[.؟!…]*\s*/g) || [text];
   const chunks = [];
@@ -343,13 +282,6 @@ function splitForNarration(text, firstMax = 150, restMax = 240) {
   return chunks;
 }
 
-/**
- * `scenes` is `[{ text, image }]` from getStory() — one narration chunk per
- * scene, each with its own picture (or `image: null` for an older cached
- * story, or a scene whose picture failed to generate). Each scene's text is
- * synthesised as its own clip, and its picture is shown the moment that clip
- * starts — the slideshow is just "whatever scene is currently playing."
- */
 async function speakStory(scenes) {
   const token = beginSpeaking();
   const voiceId = await resolveVoice();
@@ -366,7 +298,6 @@ async function speakStory(scenes) {
     const first = await pending[0];
     if (token !== speakToken) return 'stopped';
 
-    // Let the second chunk get a head start so the first seam doesn't gap.
     if (scenes.length > 1) {
       await Promise.race([pending[1], new Promise(r => setTimeout(r, 2000))]);
       if (token !== speakToken) return 'stopped';
@@ -380,10 +311,6 @@ async function speakStory(scenes) {
       showScene(scenes[i]);
       const outcome = await playClip(url, token);
       if (token !== speakToken) return 'stopped';
-      // Previously only 'blocked' was handled here — a stall or a decode
-      // error on any other scene fell through silently: no message, and
-      // the loop moved on (or, on the last scene, ended looking exactly
-      // like a story that had finished normally).
       if (outcome !== 'ended') {
         showError(describePlaybackError(outcome));
         return outcome;
@@ -397,9 +324,6 @@ async function speakStory(scenes) {
   return 'finished';
 }
 
-// ============================================================
-//   WORDS
-// ============================================================
 const categories = {
   animals: [
     { img: 'pictures/animals/bird.png',    word: 'پرنده' },
@@ -427,10 +351,6 @@ const categories = {
   ],
 };
 
-// Collections the parent creates ("Colors", "Family", ...) each get their own
-// entry in `categories`, keyed by their IndexedDB key — populated at startup
-// and after every create/delete. Animals and Face & body are the only
-// categories that ship with words already in them.
 const BUILTIN_CATEGORIES = ['animals', 'face'];
 const isBuiltinCategory = cat => BUILTIN_CATEGORIES.includes(cat);
 
@@ -450,8 +370,6 @@ function updateDisplay(animate = true) {
   const items = categories[currentCategory] || [];
   const isCustom = !isBuiltinCategory(currentCategory);
 
-  // A fresh collection starts empty — show an invitation to add the first
-  // word instead of indexing into a deck that has nothing in it.
   if (items.length === 0) {
     cardEl.hidden = true;
     cardEmptyEl.hidden = false;
@@ -527,9 +445,6 @@ function tapLily() {
   speakText(g);
 }
 
-// ============================================================
-//   MODES
-// ============================================================
 function setMode(mode) {
   document.body.dataset.mode = mode;
   if (mode === 'setup') renderHistory();
@@ -539,10 +454,6 @@ function setMode(mode) {
   document.getElementById('tab-story').setAttribute('aria-selected', mode !== 'learn');
 }
 
-// ============================================================
-//   STORY SETUP
-//   Six focuses drawn from things a 3-year-old is actually working on.
-// ============================================================
 const THEMES = [
   {
     id: 'potty', label: 'Potty time', color: '#5AA9E6',
@@ -625,8 +536,6 @@ function renderLengths() {
   });
 }
 
-// Set only while a story is actually being generated — startStory() checks
-// this first, so the same button that started it cancels it on a second tap.
 let storyController = null;
 
 function resetStoryForm() {
@@ -637,13 +546,9 @@ function resetStoryForm() {
 }
 
 async function startStory() {
-  // One more direct shot at resuming the AudioContext, tied to this exact
-  // click — the most important gesture to get right, since everything the
-  // story is about to say depends on it. Cheap insurance on top of the
-  // page-wide pointerdown listener; a no-op if already running.
   lipSync.ensureGraph();
 
-  if (storyController) {           // already generating — this tap means cancel
+  if (storyController) {
     storyController.abort();
     return;
   }
@@ -656,10 +561,6 @@ async function startStory() {
   }
 
   setupNote.classList.remove('error');
-  // A fresh story now also draws a picture for each scene, which takes
-  // longer than the text alone — say so, and show something visibly moving,
-  // so a 20-40s wait reads as working rather than stuck. A replayed (cached)
-  // story resolves almost immediately and these just flash past.
   setupNote.textContent = 'Writing the story and drawing the pictures';
   setupNote.classList.add('is-loading');
   loadingBar.hidden = false;
@@ -683,34 +584,20 @@ async function startStory() {
     return;
   }
 
-  // What OpenAI actually produced, for inspecting in devtools — the
-  // character sheet every scene's picture is built from, and each scene's
-  // narration text alongside its own picture prompt.
   console.log('[OpenAI] story characters:', characters);
   scenes.forEach((s, i) => console.log(`[OpenAI] scene ${i}:`, { text: s.text, image: s.image }));
 
   resetStoryForm();
   setupNote.textContent = '';
-  promptEl.value = '';   // otherwise the next visit to setup still shows this request
+  promptEl.value = '';
   renderHistory();
   await playStory(scenes, selectedTheme?.label || custom || 'A story for you');
 }
 
-/** Delivery tags like [giggles] are for the voice, not the reader — the
- *  parent following along on screen shouldn't see stage directions. */
 function stripDeliveryTags(text) {
   return text.replace(/\[[^\]]*\]/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
-/** Stories from before scenes/pictures existed come back from getStory() as
- *  one giant scene with no image. Left whole, that would be one very long
- *  single TTS clip with a long wait and no pacing — so anything oversized
- *  still gets split for narration, it just won't have pictures to show.
- *
- *  Only scenes with no picture need this: a real scene already has one, and
- *  is already paced by the story generator itself (3-6 scenes, roughly
- *  equal length) — splitting it further here would just orphan its picture
- *  on the first half and leave the rest with nothing, for no reason. */
 function expandLongScenes(scenes) {
   const MAX = 260;
   const out = [];
@@ -721,16 +608,11 @@ function expandLongScenes(scenes) {
   return out;
 }
 
-/** Shows the scene currently narrating: its picture, if it has one, and its
- *  text (stage-direction tags stripped, same as before). This *is* the
- *  slideshow — there's no separate timer, it just tracks playback. */
 function showScene(scene) {
   storyTextEl.textContent = stripDeliveryTags(scene.text);
   if (!scene.image) { storySceneEl.hidden = true; return; }
 
   storySceneEl.classList.add('is-changing');
-  // Swap the src while faded out so the crossfade covers the change itself,
-  // not just the fade — a plain src swap has no transition of its own.
   setTimeout(() => {
     storySceneEl.src = scene.image;
     storySceneEl.hidden = false;
@@ -738,7 +620,6 @@ function showScene(scene) {
   }, 200);
 }
 
-/** Shared by a fresh story and by replaying one from the history. */
 async function playStory(rawScenes, label) {
   const scenes = expandLongScenes(rawScenes);
   playThemeEl.textContent = label;
@@ -748,23 +629,16 @@ async function playStory(rawScenes, label) {
   repeatAction = null;
   renderPauseButton();
   setMode('play');
-  // The first chunk takes a few seconds to synthesise. Say so, otherwise a
-  // motionless Lily reads as broken rather than as getting ready.
   document.body.classList.add('preparing');
   const outcome = await speakStory(scenes);
   document.body.classList.remove('preparing');
   if (outcome === 'finished') {
-    // Stay right here instead of bouncing back to setup — a kid watching
-    // the picture and text doesn't want the screen to change out from under
-    // them the moment it ends. Repeating replays the scenes already in
-    // hand, so it's instant, no regenerating anything.
     showRepeatButton(() => playStory(rawScenes, label));
   } else if (outcome !== 'stopped') {
     setMode('setup');
   }
 }
 
-// ── History ──────────────────────────────────────────────────
 const historyEl     = document.getElementById('history');
 const historyListEl = document.getElementById('history-list');
 
@@ -779,7 +653,6 @@ async function renderHistory() {
 
     const play = document.createElement('button');
     play.className = 'history-play';
-    // dir="auto" so a Persian label renders right-to-left and an English one doesn't.
     play.innerHTML =
       `<span class="history-label" dir="auto">${escapeHtml(rec.label)}</span>
        <span class="history-meta">${rec.minutes} min${rec.minutes > 1 ? 's' : ''}</span>`;
@@ -803,12 +676,8 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-/** Set only while a finished story is sitting on screen waiting for a tap —
- *  the same button that paused mid-story now repeats it from the start. */
 let repeatAction = null;
 
-/** Pause and resume the narration in place; the story keeps its position.
- *  Once the story has actually finished, this same button repeats it instead. */
 function togglePause() {
   if (repeatAction) { const again = repeatAction; repeatAction = null; again(); return; }
   if (!currentAudio) return;
@@ -836,8 +705,6 @@ function renderPauseButton() {
   label.textContent = isPaused ? 'Play' : 'Pause';
 }
 
-/** The story just finished on its own (not paused, not left) — offer to
- *  hear it again right where it is, instead of jumping back to setup. */
 function showRepeatButton(action) {
   repeatAction = action;
   const icon  = document.getElementById('pause-icon');
@@ -849,17 +716,13 @@ function showRepeatButton(action) {
   label.textContent = 'Play again';
 }
 
-/** Leave story playback entirely and return to the setup screen. */
 function leaveStory() {
-  beginSpeaking();          // bumps the token, so narration unwinds
+  beginSpeaking();
   isPaused = false;
   renderPauseButton();
   setMode('setup');
 }
 
-// ============================================================
-//   CONFIRM DIALOG  — shared by collection and card deletion
-// ============================================================
 const confirmDialogEl = document.getElementById('confirm-dialog');
 const confirmTitleEl  = document.getElementById('confirm-title');
 const confirmMsgEl    = document.getElementById('confirm-message');
@@ -876,9 +739,6 @@ function closeConfirmDialog() {
   confirmDialogEl.classList.remove('open');
 }
 
-// ============================================================
-//   SETTINGS
-// ============================================================
 const settingsEl  = document.getElementById('settings');
 const voiceSelect = document.getElementById('voice-lily');
 const statusEl    = document.getElementById('settings-status');
@@ -897,10 +757,6 @@ async function refreshVoices() {
     voices.forEach(v => {
       const o = document.createElement('option');
       o.value = v.voice_id;
-      // ElevenLabs' premade voices carry a marketing tagline right in the
-      // name field ("Laura - Enthusiast, Quirky Attitude"). Strip that off
-      // so the dropdown shows a clean name plus our own trait summary,
-      // instead of both taglines glued together.
       const name = v.name.split(' - ')[0].trim();
       const traits = [v.labels.age, v.labels.gender, v.labels.accent].filter(Boolean).join(', ');
       o.textContent = traits ? `${name} (${traits})` : name;
@@ -908,13 +764,6 @@ async function refreshVoices() {
       voiceSelect.appendChild(o);
     });
     if (!saved && voices.length) {
-      // Jessica is the default. Only applies when nothing has been picked
-      // yet (saved is empty) — once a voice is chosen, setVoice() persists
-      // it in localStorage and this branch never runs again on that device.
-      // ElevenLabs' premade voices carry their tagline in the name field
-      // itself ("Jessica - Playful, Bright, Warm"), so this has to match
-      // the start of it rather than the bare name. Falls back to the first
-      // voice in the account if Jessica isn't in it.
       const preferred = voices.find(v => v.name.split(' - ')[0].trim() === 'Jessica') || voices[0];
       setVoice(preferred.voice_id);
       voiceSelect.value = preferred.voice_id;
@@ -942,9 +791,6 @@ function showError(msg) {
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), 4200);
 }
 
-// ============================================================
-//   INPUT
-// ============================================================
 document.addEventListener('keydown', e => {
   const t = e.target;
   if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
@@ -961,8 +807,6 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') navigate(1);
   if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault();
-    // The empty-collection card has its own action (open the add-word
-    // sheet) — only fall back to sayWord() when a real card is focused.
     if (t.id === 'card-empty') openAddWordForCurrent();
     else sayWord();
   }
@@ -981,10 +825,7 @@ cardEl.addEventListener('touchend', e => {
   if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) navigate(dx > 0 ? 1 : -1);
 });
 
-// ============================================================
-//   COLLECTIONS  (parent-created decks, e.g. "Colors", "Family")
-// ============================================================
-let customCollections = [];   // [{ _key, name }], creation order
+let customCollections = [];
 
 async function loadCollections() {
   const { collections, cards } = await getVocabulary();
@@ -1078,7 +919,6 @@ async function submitNewCollection() {
   closeNewCollection();
   await loadCollections();
 
-  // Land on the new, empty collection, ready for its first word.
   currentCategory = coll._key;
   currentIndex = 0;
   document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
@@ -1089,9 +929,6 @@ async function submitNewCollection() {
 document.getElementById('new-collection-name')
   .addEventListener('keydown', e => { if (e.key === 'Enter') submitNewCollection(); });
 
-// ============================================================
-//   CUSTOM CARDS  (words inside a collection)
-// ============================================================
 const addWordEl     = document.getElementById('add-word');
 const addWordTarget = document.getElementById('add-word-target');
 const newWordField  = document.getElementById('new-word-field');
@@ -1105,8 +942,8 @@ const cardPreviewEl = document.getElementById('card-preview');
 const cardPreviewImg  = document.getElementById('card-preview-img');
 const cardPreviewWord = document.getElementById('card-preview-word');
 
-let addWordTargetKey = null;   // which collection the sheet is adding to
-let pendingCard = null;        // generated but not yet saved
+let addWordTargetKey = null;
+let pendingCard = null;
 
 async function loadCardsFor(collectionId) {
   const cards = await listCards(collectionId);
@@ -1119,7 +956,6 @@ async function loadCardsFor(collectionId) {
   }
 }
 
-/** Opens the sheet targeting whichever collection is currently on screen. */
 function openAddWordForCurrent(event) {
   event?.stopPropagation();
   if (isBuiltinCategory(currentCategory)) return;
@@ -1148,10 +984,9 @@ function openAddWord(collectionId) {
 
 function closeAddWord() {
   addWordEl.classList.remove('open');
-  pendingCard = null;   // an un-confirmed generated card is simply discarded
+  pendingCard = null;
 }
 
-/** Step 1: generate a translation + picture, but save nothing yet. */
 async function generateNewWord() {
   const word = newWordInput.value.trim();
   if (!word) {
@@ -1184,7 +1019,6 @@ async function generateNewWord() {
   confirmActionsEl.hidden = false;
 }
 
-/** Back to the input, discarding whatever was just generated. */
 function retryNewWord() {
   pendingCard = null;
   newWordField.hidden = false;
@@ -1195,7 +1029,6 @@ function retryNewWord() {
   newWordInput.focus();
 }
 
-/** Step 2: the parent has seen the picture and word — now actually save it. */
 async function confirmNewWord() {
   if (!pendingCard || !addWordTargetKey) return;
 
@@ -1206,7 +1039,6 @@ async function confirmNewWord() {
   const targetKey = addWordTargetKey;
   await loadCardsFor(targetKey);
 
-  // Switch to that collection and land on the card just added.
   currentCategory = targetKey;
   currentIndex = categories[targetKey].length - 1;
   document.querySelectorAll('.deck-tab').forEach(b => b.classList.remove('is-active'));
@@ -1219,7 +1051,7 @@ async function confirmNewWord() {
 }
 
 function deleteCurrentCard(event) {
-  event.stopPropagation();   // the card itself also opens sayWord() on click
+  event.stopPropagation();
   if (isBuiltinCategory(currentCategory)) return;
   const item = categories[currentCategory]?.[currentIndex];
   if (!item) return;
@@ -1240,24 +1072,16 @@ async function reallyDeleteCard(item) {
 
 newWordInput.addEventListener('keydown', e => { if (e.key === 'Enter') generateNewWord(); });
 
-// ============================================================
-//   EXPOSE + INIT
-// ============================================================
 Object.assign(window, {
   setMode, setCategory, navigate, sayWord, tapLily,
   startStory, togglePause, leaveStory,
-  openSettings, closeSettings, clearAudioCache, copyDiagnostics,
+  openSettings, closeSettings, clearAudioCache, copyDiagnostics, handleSignOut,
   openNewCollection, closeNewCollection, submitNewCollection,
   openAddWordForCurrent, closeAddWord, generateNewWord, retryNewWord, confirmNewWord,
   deleteCurrentCard, closeConfirmDialog,
   __lipSync: lipSync,
 });
 
-// Tapping the dimmed backdrop closes whichever sheet is open — but not a tap
-// that started inside the sheet and merely ended over the backdrop (e.g.
-// selecting text). Each sheet's own close function runs, not a blind class
-// toggle, so state that needs resetting (a pending generated card, etc.)
-// still gets reset correctly.
 const SHEET_CLOSERS = {
   'settings':       closeSettings,
   'add-word':       closeAddWord,
@@ -1278,5 +1102,4 @@ renderHistory();
 updateDisplay(false);
 voicesReady = refreshVoices();
 
-// Load every collection and card — one request — before the deck tabs are usable.
 loadCollections();

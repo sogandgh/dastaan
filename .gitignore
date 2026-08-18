@@ -14,7 +14,10 @@ config.local.js
 # Personal voice recordings (the app now synthesises speech instead)
 audio/
 
-# Shared vocabulary (collections + generated card images) — runtime data
-# that lives on the server, differs per deployment, and must survive `git
-# pull` untouched.
+# Generated card/story images — runtime data that lives on the server,
+# differs per deployment, and must survive `git pull` untouched. The
+# vocabulary/story records themselves now live in Postgres, not here.
 /data/
+
+# npm dependencies (first ones this project has ever had — @supabase/supabase-js)
+node_modules/

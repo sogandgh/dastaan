@@ -1,32 +1,21 @@
-/* ============================================================
-   Dastaan
-   Two atmospheres: Learn is daylight, Story dims to dusk.
-   The character never leaves — the stage moves around him.
-============================================================ */
-
 :root {
-  /* Day — warm and flat, not a wash. */
+
   --sky-lo:    #F8EDEB;
   --paper:     #FFFFFF;
   --ink:       #22304A;
   --ink-soft:  #6A7A94;
   --ink-faint: #9FADC2;
-  --blue:      #FFB5A7;  /* primary accent — salmon, paired with dark ink text */
-  --blue-deep: #3D7566;  /* deep teal (from --mint) — the text-safe hover/deep variant */
-  --mint:      #BEE3DB;  /* the one cool note against an otherwise warm palette */
-  --sand:      #FFD1BA;  /* light peach — secondary accent background */
-  --coral:     #C94A32;  /* danger + hero CTA — deep enough for white text */
+  --blue:      #FFB5A7;
+  --blue-deep: #3D7566;
+  --mint:      #BEE3DB;
+  --sand:      #FFD1BA;
+  --coral:     #C94A32;
 
-  /* Story light — warmer and softer than Learn, never dark */
   --warm-lo:   #FCD5CE;
   --amber:     #B85A47;
 
   --line:      rgba(34, 48, 74, 0.10);
-  /* Flat, no drop shadows. Corners take the middle ground: rounded
-     enough to not be sharp, never a full stadium/pill capsule — r-md
-     and r-lg carry one asymmetric corner pair (two scales of the same
-     signature) so content surfaces read as a shape, not a default
-     rounded-rect. r-pill is a moderate rounded-rect too, not 999px. */
+
   --r-sm: 10px;
   --r-md: 22px 12px 22px 12px;
   --r-lg: 34px 20px 34px 20px;
@@ -68,8 +57,6 @@ button, [role="button"] { touch-action: manipulation; }
   border-radius: 6px;
 }
 
-/* Visually hidden but still reachable by screen readers — for labels
-   that need a real accessible name without duplicating visible text. */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -100,9 +87,6 @@ button, [role="button"] { touch-action: manipulation; }
   outline-color: var(--paper);
 }
 
-/* ============================================================
-   BACKDROP — one flat color per mode. Shifts to dusk in story mode.
-============================================================ */
 .backdrop {
   position: fixed;
   inset: 0;
@@ -114,13 +98,6 @@ body[data-mode="play"] .backdrop {
   background: var(--warm-lo);
 }
 
-/* ============================================================
-   TOP BAR
-============================================================ */
-/* Three tracks — brand, tab switcher, settings — so the switcher sits on the
-   page's true center line rather than merely between whatever brand/gear
-   happen to measure. Grid confines brand and gear to their own tracks, so a
-   long brand string clips instead of drifting into the centre column. */
 .topbar {
   position: fixed;
   z-index: 20;
@@ -133,7 +110,6 @@ body[data-mode="play"] .backdrop {
   transition: opacity 400ms var(--ease);
 }
 
-/* Says what this is, in both scripts, before anyone taps anything. */
 .brand {
   grid-column: 1;
   justify-self: start;
@@ -179,9 +155,6 @@ body[data-mode="play"] .backdrop {
   color: var(--ink-soft);
 }
 
-/* Top-left, sharing the brand's grid track (they're never shown together),
-   and only offered during playback. .icon-btn sets display + column, so the
-   override has to match its specificity. */
 .icon-btn.back-btn {
   grid-column: 1;
   justify-self: start;
@@ -189,7 +162,7 @@ body[data-mode="play"] .backdrop {
 }
 body[data-mode="play"] .icon-btn.back-btn { display: grid; }
 .back-btn:hover { transform: translateX(-2px); }
-/* Keeps the back button hard left when the brand and tabs are hidden. */
+
 body[data-mode="play"] .topbar { justify-content: flex-start; }
 
 .modes {
@@ -235,16 +208,12 @@ body[data-mode="play"] .topbar { justify-content: flex-start; }
 .icon-btn svg { width: 21px; height: 21px; }
 .icon-btn:hover { color: var(--ink); transform: rotate(28deg); }
 
-/* In story playback nothing competes with Lily — except the way out. */
 body[data-mode="play"] .brand,
 body[data-mode="play"] .modes {
   display: none;
 }
 body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
 
-/* ============================================================
-   STAGE
-============================================================ */
 .stage {
   position: relative;
   z-index: 1;
@@ -256,14 +225,10 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
   padding: 92px clamp(16px, 4vw, 40px) 56px;
 }
 
-/* Story setup: Lily sits 40% further from the bottom edge than everywhere
-   else — the "Tonight's story" panel reads better with a bit more air
-   under her feet than the flashcard screen needs. */
 body[data-mode="setup"] .stage {
-  padding-bottom: 78px; /* 56px * 1.4 */
+  padding-bottom: 78px;
 }
 
-/* ── The character, and how he travels between modes ── */
 .lily-holder {
   flex-shrink: 0;
   display: flex;
@@ -275,8 +240,6 @@ body[data-mode="setup"] .stage {
 }
 .lily-holder:active { transform: scale(0.98); }
 
-/* A soft contact shadow so Lily reads as standing in the scene rather
-   than floating next to whatever panel happens to share the page. */
 .lily-holder::after {
   content: '';
   width: 100px;
@@ -286,13 +249,6 @@ body[data-mode="setup"] .stage {
   background: rgba(34, 48, 74, 0.14);
 }
 
-/* Story mode uses the same side-by-side stage as Learn and Story setup —
-   Lily on the left, the story text where a parent can follow along on the
-   right — rather than a special centred layout of its own. */
-
-/* ============================================================
-   PANELS
-============================================================ */
 .panel {
   display: none;
   animation: panelIn 460ms var(--ease) both;
@@ -306,9 +262,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   to   { opacity: 1; transform: none; }
 }
 
-/* ============================================================
-   LEARN
-============================================================ */
 .panel-learn {
   flex-direction: column;
   align-items: center;
@@ -345,9 +298,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   gap: 6px;
   flex-wrap: wrap;
 }
-/* Sits at the app's default icon-btn size (44px) but a touch smaller so it
-   doesn't visually compete with the deck tabs beside it. Overrides the
-   settings gear's rotate-on-hover with a scale, which reads as "add". */
+
 .add-word-btn {
   width: 38px;
   height: 38px;
@@ -369,8 +320,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   color: var(--ink);
 }
 
-/* A parent-created collection's tab carries its own remove control, so a
-   collection can be deleted without opening it first. */
 .deck-tab-custom {
   display: inline-flex;
   align-items: center;
@@ -389,9 +338,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   opacity: 0.55;
   transition: opacity 150ms, background 150ms, transform 150ms;
 }
-/* A 16px dot is too small to tap reliably next to the label it shares a
-   button with — this quietly extends the real tap area to ~44px without
-   changing how big the × looks, so a thumb hits it and not the tab label. */
+
 .deck-tab-del::before {
   content: '';
   position: absolute;
@@ -412,8 +359,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
 }
 .card.pop { animation: cardPop 380ms var(--ease); }
 
-/* Only shown on cards from "My Words" — the built-in decks can't be edited.
-   Author display rules beat the UA [hidden] one, so it needs an explicit override. */
 .card-del[hidden] { display: none; }
 .card-del {
   position: absolute;
@@ -433,11 +378,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .card-del svg { width: 13px; height: 13px; }
 .card-del:hover { color: var(--coral); background: #FFEDF2; transform: scale(1.08); }
 
-/* Add-another-word, mirrored to the opposite corner from delete. */
-/* The card and its "add another word" button sit side by side, outside the
-   card's own box — the button only takes up space when it's actually shown
-   (display:none removes it from the flex row), so the card is full width
-   again on the built-in decks where the button never appears. */
 .card-row {
   display: flex;
   align-items: center;
@@ -448,12 +388,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
   flex: 1;
   min-width: 0;
 }
-/* card-slot is flex:1, so when the add button only exists on the right, the
-   card itself — the thing the eye actually centers on — drifts left of true
-   center by roughly the button's own width. A matching invisible weight on
-   the left balances it, but only while the button is actually showing;
-   otherwise (Animals, Face & body, an empty collection) it would just be a
-   permanent phantom gap on the wrong side. */
+
 .card-row:has(> .card-add-outside:not([hidden]))::before {
   content: '';
   flex-shrink: 0;
@@ -476,7 +411,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .card-add-outside svg { width: 19px; height: 19px; }
 .card-add-outside:hover { color: var(--coral); transform: scale(1.1); }
 
-/* "My Words" with nothing in it yet — an invitation, not a blank card. */
 .card-empty[hidden] { display: none; }
 .card-empty {
   display: flex;
@@ -514,7 +448,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
 }
 
 .card-art {
-  position: relative;   /* gives the image a definite box to fit inside */
+  position: relative;
   height: clamp(170px, 28vh, 240px);
   margin-bottom: 14px;
   overflow: hidden;
@@ -529,7 +463,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   object-fit: contain;
 }
 
-/* The Persian word is the hero of this screen. */
 .card-word {
   font-family: 'Vazirmatn', sans-serif;
   font-size: clamp(2.5rem, 8vw, 3.6rem);
@@ -595,9 +528,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .say-btn:hover  { transform: translateY(-2px); }
 .say-btn:active { transform: translateY(0) scale(0.97); }
 
-/* ============================================================
-   STORY SETUP
-============================================================ */
 .panel-setup {
   flex-direction: column;
   gap: 20px;
@@ -625,10 +555,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   color: var(--ink-soft);
 }
 
-/* Topics are choices sitting on the page, not a grid of dashboard
-   tiles — no card, no border, no shadow. Each one is only as wide as
-   its own icon + label, so the row wraps unevenly on its own instead
-   of locking into a perfect 3x2 grid. */
 .themes {
   display: flex;
   flex-wrap: wrap;
@@ -655,8 +581,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   font-weight: 600;
 }
 
-/* The alternative path — a quiet underlined line, not a second boxed
-   field carrying the same visual weight as the topics above it. */
 .custom-idea {
   display: flex;
   align-items: center;
@@ -710,14 +634,11 @@ body[data-mode="play"]  #panel-play { display: flex; }
 }
 .field input:focus,
 .sheet select:focus { border-color: var(--blue-deep); }
-/* Mouse-click focus keeps just the border-color cue; keyboard focus still
-   gets the same visible ring used everywhere else (global :focus-visible). */
+
 .field input:focus:not(:focus-visible),
 .sheet select:focus:not(:focus-visible) { outline: none; }
 .field input::placeholder { color: var(--ink-faint); }
 
-/* Duration is a small supporting control, not a row of equal-weight
-   buttons — compact chips, sized to their own text. */
 .setup-footer {
   display: flex;
   flex-direction: column;
@@ -767,11 +688,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   animation: dots 1.4s steps(4, end) infinite;
 }
 
-/* A fresh story now writes text *and* draws a picture for every scene, so
-   "Start the story" can take 20-40s instead of a few — long enough that a
-   static line of text reads as stuck. An indeterminate bar (there's no real
-   percentage to show — the story and every picture finish as one batch, not
-   gradually) says "still working" without pretending to know how close. */
 .loading-bar {
   width: 100%;
   height: 6px;
@@ -794,7 +710,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   100% { transform: translateX(350%); }
 }
 
-/* ── History of stories already made ── */
 .history {
   margin-top: 6px;
   padding-top: 20px;
@@ -824,7 +739,7 @@ body[data-mode="play"]  #panel-play { display: flex; }
 }
 .history-play {
   flex: 1;
-  min-width: 0;   /* lets the label truncate instead of pushing the row wider */
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -867,9 +782,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
 .history-del svg { width: 15px; height: 15px; }
 .history-del:hover { color: var(--coral); background: #FFEDF2; }
 
-/* ============================================================
-   STORY PLAYING
-============================================================ */
 .panel-play {
   flex-direction: column;
   align-items: center;
@@ -891,9 +803,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   color: var(--amber);
 }
 
-/* The story itself, so a grown-up can follow along while Lily narrates.
-   Tall enough that the picture and the current line of text are both
-   visible together without scrolling — that's the point of having both. */
 .story-panel {
   width: 100%;
   max-height: min(64vh, 480px);
@@ -911,12 +820,6 @@ body[data-mode="play"]  #panel-play { display: flex; }
   color: var(--ink);
 }
 
-/* One picture per scene, swapped in step with the narration — a soft
-   crossfade (toggled in JS via .is-changing) instead of a hard cut. The box
-   is wider than tall so there's room below for the text of the same scene,
-   but the pictures themselves are square (1024x1024) — `contain`, not
-   `cover`, so the whole picture always shows, letterboxed on the sides
-   rather than cropped top and bottom to fill the box. */
 .story-scene {
   display: block;
   width: 100%;
@@ -928,11 +831,9 @@ body[data-mode="play"]  #panel-play { display: flex; }
   transition: opacity 0.25s ease;
 }
 .story-scene.is-changing { opacity: 0; }
-/* Author display rules beat the UA [hidden] one at equal specificity. */
+
 .story-scene[hidden] { display: none; }
 
-/* While the first chunk is being synthesised there is nothing to hear and the
-   mouth is correctly still. Say so, so the wait doesn't look like a fault. */
 .preparing-note {
   display: none;
   font-size: 0.85rem;
@@ -953,7 +854,6 @@ body.preparing .stop-btn { display: none; }
   75%  { content: '...'; }
 }
 
-/* Five bars that breathe with the narration. */
 .levels {
   display: flex;
   align-items: flex-end;
@@ -990,9 +890,6 @@ body.preparing .stop-btn { display: none; }
 .stop-btn:hover  { transform: translateY(-2px); }
 .stop-btn:active { transform: scale(0.97); }
 
-/* ============================================================
-   SETTINGS SHEET
-============================================================ */
 .sheet-overlay {
   display: none;
   position: fixed;
@@ -1020,8 +917,7 @@ body.preparing .stop-btn { display: none; }
   margin-bottom: 6px;
 }
 .sheet .field { margin-top: 18px; }
-/* Author display rules beat the UA [hidden] one at equal specificity, so any
-   element toggled with the hidden attribute needs this made explicit. */
+
 .sheet-actions[hidden] { display: none; }
 .sheet-actions {
   display: flex;
@@ -1041,8 +937,6 @@ body.preparing .stop-btn { display: none; }
 }
 .ghost-btn:hover { background: var(--sand); }
 
-/* Fallback for copyDiagnostics() when the clipboard API isn't available —
-   shown pre-selected so it can still be copied by hand. */
 .diagnostics-output[hidden] { display: none; }
 .diagnostics-output {
   display: block;
@@ -1060,22 +954,13 @@ body.preparing .stop-btn { display: none; }
   resize: none;
 }
 
-/* A distinct, more serious red — --coral is already the app's happy primary
-   action color (Start the story, etc.), so it can't also read as "this is
-   destructive" without a genuinely different color to contrast against it.
-   The heading carries that color itself rather than an icon. */
 .sheet-danger h2 { color: #D64545; }
-/* .sheet-actions .start-btn (below) sets background: var(--ink) at higher
-   specificity than a single .danger-btn class, so the override has to match
-   it exactly or the "Delete" button silently renders in the ordinary navy. */
+
 .sheet-actions .danger-btn {
   background: #D64545;
 }
 .sheet-actions .danger-btn:hover { background: #B93636; }
 
-/* Preview of a newly generated card, shown inside the "Add a word" sheet.
-   An unqualified display:flex here would beat the UA [hidden] rule (author
-   styles always win over UA ones), so the hidden state needs to be explicit. */
 .card-preview[hidden] { display: none; }
 .card-preview {
   display: flex;
@@ -1101,9 +986,6 @@ body.preparing .stop-btn { display: none; }
   color: var(--ink);
 }
 
-/* ============================================================
-   DISCLAIMER
-============================================================ */
 .disclaimer {
   position: fixed;
   left: 50%;
@@ -1121,15 +1003,10 @@ body.preparing .stop-btn { display: none; }
 }
 body[data-mode="play"] .disclaimer { opacity: 0; }
 
-/* ============================================================
-   TOAST
-============================================================ */
 .toast {
   position: fixed;
   left: 50%;
-  /* iOS Safari's bottom toolbar/home-indicator area can visually cover a
-     plain `bottom: 26px` fixed element — env() adds real clearance on a
-     phone that has one, and is a harmless 0 everywhere else. */
+
   bottom: calc(26px + env(safe-area-inset-bottom, 0px));
   z-index: 60;
   max-width: min(88vw, 420px);
@@ -1150,10 +1027,8 @@ body[data-mode="play"] .disclaimer { opacity: 0; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* On a wide screen the history sits beside the form instead of below the fold. */
 @media (min-width: 1180px) {
-  /* Matches the specificity of the mode rule that sets display: flex.
-     Exactly two children — the form and the history — so no implicit rows. */
+
   body[data-mode="setup"] #panel-setup {
     display: grid;
     width: min(880px, 100%);
@@ -1170,9 +1045,6 @@ body[data-mode="play"] .disclaimer { opacity: 0; }
 }
 .history[hidden] { display: none; }
 
-/* ============================================================
-   RESPONSIVE
-============================================================ */
 @media (max-width: 860px) {
   .stage {
     flex-direction: column;
@@ -1181,10 +1053,7 @@ body[data-mode="play"] .disclaimer { opacity: 0; }
     padding-top: 78px;
     overflow-y: auto;
   }
-  /* No extra scale-down here anymore — it was stacking on top of
-     lily.css's own ≤640px mobile scale and compounding to smaller
-     than intended. lily.css's mobile breakpoint handles her size on
-     phones; this range (641–860px) now gets the full desktop scale. */
+
   .panel-learn, .panel-setup, .panel-play { width: 100%; max-width: 440px; }
   .panel-setup { max-height: none; }
   .card-art { height: clamp(140px, 20vh, 180px); }

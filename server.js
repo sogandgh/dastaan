@@ -12,10 +12,13 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile, appendFile, mkdir, unlink } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { createClient } from '@supabase/supabase-js';
 
 const PORT        = process.env.PORT || 8000;
 const API_KEY     = process.env.ELEVENLABS_API_KEY;
 const OPENAI_KEY  = process.env.OPENAI_API_KEY;
+const SUPABASE_URL      = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 // Story writing gets the full model — real creative writing in Farsi held up
 // noticeably better under it (natural idioms, causally-connected events,
 // named characters) than gpt-5-mini did, and reasoning_effort: 'minimal'
@@ -26,22 +29,15 @@ const OPENAI_MODEL       = process.env.OPENAI_MODEL || 'gpt-5-mini';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini';
 const ROOT        = process.cwd();
 
-// Collections and cards are shared across every device that opens this
-// server — one family vocabulary, not one per browser. They live in a JSON
-// file plus a folder of PNGs, both outside git (see .gitignore), so `git
-// pull` on deploy never touches them.
+// Collections, cards, and stories now live in Postgres (Supabase), one row
+// per record, scoped to whoever owns it — see requireAuth/dbFor below.
+// Only the picture files themselves (card art, story scene illustrations)
+// still live on disk, namespaced per user so one family's images aren't a
+// guessable path for another; everything outside git (see .gitignore), so
+// `git pull` on deploy never touches them.
 const DATA_DIR   = join(ROOT, 'data');
 const IMAGES_DIR = join(DATA_DIR, 'images');
-const VOCAB_FILE = join(DATA_DIR, 'vocabulary.json');
-
-// Stories were per-browser (IndexedDB) — a story generated on one phone
-// didn't exist on any other. Shared now, the same way collections/cards
-// are: one JSON file of records plus a folder of PNGs for the scene
-// pictures, so every device sees the same "stories you've made" list, and
-// a story someone else already generated is instant and free instead of
-// generating again from scratch.
 const STORY_IMAGES_DIR = join(DATA_DIR, 'story-images');
-const STORIES_FILE     = join(DATA_DIR, 'stories.json');
 
 const API_ROOT = 'https://api.elevenlabs.io';
 const MODEL_ID = 'eleven_v3';     // the only model that supports Persian (fas)
@@ -67,6 +63,54 @@ function sendJson(res, status, body) {
     'Content-Length': Buffer.byteLength(payload),
   });
   res.end(payload);
+}
+
+// ── Auth ──
+// Every route below that touches user data or spends API-key money
+// requires a signed-in Supabase user. The anon key is safe to hold here
+// (it's the same public key the browser uses); this server never sees a
+// password and never holds the service_role key — it only ever asks
+// Supabase "whose token is this," the same check the browser could do,
+// just done server-side so a stolen/forged request can't skip it.
+const authClient = SUPABASE_URL && SUPABASE_ANON_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+/** Pull the bearer token off the request and resolve it to a Supabase user.
+ *  Returns { user, token } on success; sends 401 and returns null on
+ *  failure — callers just do `const auth = await requireAuth(req, res); if
+ *  (!auth) return;` and read on. */
+async function requireAuth(req, res) {
+  if (!authClient) {
+    sendJson(res, 500, { error: 'Server is not configured for sign-in (SUPABASE_URL/SUPABASE_ANON_KEY missing).' });
+    return null;
+  }
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!token) {
+    sendJson(res, 401, { error: 'Sign in required.' });
+    return null;
+  }
+  const { data, error } = await authClient.auth.getUser(token);
+  if (error || !data?.user) {
+    sendJson(res, 401, { error: 'Your session has expired. Please sign in again.' });
+    return null;
+  }
+  return { user: data.user, token };
+}
+
+/** A Postgres client scoped to one user's token. Row Level Security (see
+ *  supabase/schema.sql) uses this identity to silently restrict every
+ *  select/insert/update/delete to that user's own rows — there is no
+ *  manual `.eq('owner_id', ...)` to get wrong or forget. */
+function dbFor(token) {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+}
+
+function dbError(res, error) {
+  sendJson(res, 500, { error: error.message || 'Something went wrong saving that.' });
 }
 
 /**
@@ -146,7 +190,8 @@ async function upstreamError(upstream) {
   }
 }
 
-async function handleVoices(res) {
+async function handleVoices(req, res) {
+  if (!(await requireAuth(req, res))) return;
   if (!requireKey(res)) return;
 
   const upstream = await fetchWithTimeout(`${API_ROOT}/v2/voices?page_size=100`, {
@@ -165,6 +210,7 @@ async function handleVoices(res) {
 }
 
 async function handleTts(req, res) {
+  if (!(await requireAuth(req, res))) return;
   if (!requireKey(res)) return;
 
   const chunks = [];
@@ -271,10 +317,11 @@ function buildUserPrompt({ prompt, focus }) {
   return parts.join('\n\n');
 }
 
-async function handleStory(req, res) {
+async function handleStory(req, res, auth) {
   if (!OPENAI_KEY) {
     return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set');
   }
+  const db = dbFor(auth.token);
 
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -296,16 +343,19 @@ async function handleStory(req, res) {
   }
 
   // The same request (same focus/prompt/length) always gets the same story
-  // — small children want *that* story again, not a new one — and now that
-  // stories are shared, "same request" means shared across every device
-  // too: whoever asks first pays for it, everyone else gets it free and
-  // instantly, exactly like replaying one from history.
-  const key = [
+  // — small children want *that* story again, not a new one — and it's
+  // cached per-owner (unique(owner_id, cache_key) in the schema, enforced
+  // by RLS on every query here), so whoever in this account asks first pays
+  // for it, and asking again from any of their devices is free and instant.
+  const cacheKey = [
     minutes, focus,
     String(prompt).trim().toLowerCase().replace(/\s+/g, ' '),
   ].join('|');
-  const existing = (await loadStories()).stories.find(s => s.key === key);
-  if (existing) return sendJson(res, 200, { id: existing.id, characters: existing.characters, scenes: existing.scenes });
+  const { data: existing, error: lookupErr } = await db
+    .from('stories').select('id, characters, scenes')
+    .eq('cache_key', cacheKey).maybeSingle();
+  if (lookupErr) return dbError(res, lookupErr);
+  if (existing) return sendJson(res, 200, existing);
 
   // A story now takes 20-40s (text, then a picture per scene) — long enough
   // that a parent cancelling mid-wait is normal, not an edge case. Rather
@@ -388,48 +438,49 @@ async function handleStory(req, res) {
   }));
   if (bail()) return;   // cancelled while drawing — no one's listening
 
-  // Save each picture as its own file (same reason card art is a file and
-  // not inline JSON: base64 in a JSON blob that gets read and rewritten on
-  // every future story would only get slower and heavier over time) and
-  // save the story itself — shared, so any device sees it in history, and
-  // matched against `key` above so this exact request is never paid for or
-  // waited on twice.
+  // Save each picture as its own file, namespaced under this user's own
+  // folder (same reason card art is a file and not inline JSON: base64 in
+  // a JSON blob that gets read and rewritten on every future story would
+  // only get slower and heavier over time), then save the story row itself
+  // — cached against `cacheKey` above so this exact request is never paid
+  // for or waited on twice.
   const id = newId('story');
   const savedScenes = await Promise.all(scenes.map(async (s, i) =>
     images[i]
-      ? { text: s.text, image: await saveImageFile(`${id}-${i}`, `data:image/png;base64,${images[i]}`, STORY_IMAGES_DIR) }
+      ? { text: s.text, image: await saveImageFile(auth.user.id, `${id}-${i}`, `data:image/png;base64,${images[i]}`, STORY_IMAGES_DIR) }
       : { text: s.text, image: null }
   ));
 
-  await mutateStories(data => {
-    data.stories.push({
-      id, key,
-      label: String(label).trim() || String(prompt).trim() || 'A story',
-      minutes,
-      characters,
-      scenes: savedScenes,
-      savedAt: Date.now(),
-    });
+  const { error: insertErr } = await db.from('stories').insert({
+    id,
+    owner_id: auth.user.id,
+    cache_key: cacheKey,
+    label: String(label).trim() || String(prompt).trim() || 'A story',
+    minutes,
+    characters,
+    scenes: savedScenes,
   });
+  if (insertErr) return dbError(res, insertErr);
 
   sendJson(res, 200, { id, characters, scenes: savedScenes });
 }
 
-async function handleStoriesGet(res) {
-  const data = await loadStories();
-  sendJson(res, 200, {
-    stories: data.stories.slice().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)),
-  });
+async function handleStoriesGet(res, auth) {
+  const db = dbFor(auth.token);
+  const { data, error } = await db
+    .from('stories').select('id, label, minutes, characters, scenes, saved_at')
+    .order('saved_at', { ascending: false });
+  if (error) return dbError(res, error);
+  sendJson(res, 200, { stories: data.map(s => ({ ...s, savedAt: new Date(s.saved_at).getTime() })) });
 }
 
-async function handleDeleteStory(id, res) {
+async function handleDeleteStory(id, res, auth) {
+  const db = dbFor(auth.token);
   try {
-    let removed = null;
-    await mutateStories(data => {
-      removed = data.stories.find(s => s.id === id) || null;
-      data.stories = data.stories.filter(s => s.id !== id);
-    });
-    if (removed) await Promise.all(removed.scenes.map(s => s.image ? deleteImageFile(s.image) : null));
+    const { data: removed } = await db.from('stories').select('scenes').eq('id', id).maybeSingle();
+    const { error } = await db.from('stories').delete().eq('id', id);
+    if (error) return dbError(res, error);
+    if (removed) await Promise.all((removed.scenes || []).map(s => s.image ? deleteImageFile(s.image) : null));
     sendJson(res, 200, { ok: true });
   } catch (e) {
     sendJson(res, 500, { error: e.message });
@@ -564,7 +615,7 @@ async function openaiErrorMessage(upstream) {
   }
 }
 
-async function handleCard(req, res) {
+async function handleCard(req, res) {   // gated by requireAuth in the router; needs no user-scoped data itself
   if (!OPENAI_KEY) {
     return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set');
   }
@@ -591,94 +642,50 @@ async function handleCard(req, res) {
 }
 
 /**
- * Shared vocabulary: collections and the cards inside them, one file for the
- * whole family. Every mutation is funneled through a single promise chain so
- * two requests arriving close together (two devices tapping at once) can't
- * read-modify-write over each other — reads and writes all happen one at a
- * time, in order. `mutationTail` always resolves even when an individual
- * mutation throws, so one failure can't wedge every request after it.
+ * Vocabulary: collections and the cards inside them, one row each, scoped
+ * to whoever owns them by Postgres Row Level Security (see
+ * supabase/schema.sql) — no manual per-user filtering to get wrong here.
  */
-let vocabPromise  = null;
-let mutationTail  = Promise.resolve();
-
-async function loadVocabulary() {
-  if (vocabPromise) return vocabPromise;
-  vocabPromise = (async () => {
-    try {
-      return JSON.parse(await readFile(VOCAB_FILE, 'utf8'));
-    } catch {
-      return { collections: [], cards: [] };   // first run, or file missing
-    }
-  })();
-  return vocabPromise;
-}
-
-/** Run `fn(data)` exclusively, persist whatever it mutated, return its result. */
-function mutateVocabulary(fn) {
-  const result = mutationTail.then(async () => {
-    const data = await loadVocabulary();
-    const ret = await fn(data);
-    await mkdir(DATA_DIR, { recursive: true });
-    await writeFile(VOCAB_FILE, JSON.stringify(data, null, 2));
-    vocabPromise = Promise.resolve(data);
-    return ret;
-  });
-  mutationTail = result.catch(() => {});   // keep the chain alive past a failure
-  return result;
-}
-
-// Same read/serialize-writes pattern as vocabulary above, kept as its own
-// file and its own promise chain since it's a separate dataset that changes
-// on its own schedule (a new story vs. a new word).
-let storiesPromise     = null;
-let storiesMutationTail = Promise.resolve();
-
-async function loadStories() {
-  if (storiesPromise) return storiesPromise;
-  storiesPromise = (async () => {
-    try {
-      return JSON.parse(await readFile(STORIES_FILE, 'utf8'));
-    } catch {
-      return { stories: [] };   // first run, or file missing
-    }
-  })();
-  return storiesPromise;
-}
-
-function mutateStories(fn) {
-  const result = storiesMutationTail.then(async () => {
-    const data = await loadStories();
-    const ret = await fn(data);
-    await mkdir(DATA_DIR, { recursive: true });
-    await writeFile(STORIES_FILE, JSON.stringify(data, null, 2));
-    storiesPromise = Promise.resolve(data);
-    return ret;
-  });
-  storiesMutationTail = result.catch(() => {});
-  return result;
-}
 
 function newId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-async function saveImageFile(id, dataUrl, dir = IMAGES_DIR) {
+/** Namespaced by user so one family's card/scene art isn't a guessable path
+ *  for another. Served back out through the plain static handler below,
+ *  not an authenticated route — a bearer token can't ride along on a plain
+ *  <img src>, so the unguessable per-user folder name is the protection. */
+async function saveImageFile(userId, id, dataUrl, dir = IMAGES_DIR) {
   const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl || '');
   if (!match) throw new Error('That image could not be saved.');
   const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-  await mkdir(dir, { recursive: true });
+  const userDir = join(dir, userId);
+  await mkdir(userDir, { recursive: true });
   const filename = `${id}.${ext}`;
-  await writeFile(join(dir, filename), Buffer.from(match[2], 'base64'));
-  return `/data/${dir === STORY_IMAGES_DIR ? 'story-images' : 'images'}/${filename}`;
+  await writeFile(join(userDir, filename), Buffer.from(match[2], 'base64'));
+  return `/data/${dir === STORY_IMAGES_DIR ? 'story-images' : 'images'}/${userId}/${filename}`;
 }
 
 async function deleteImageFile(publicPath) {
-  if (!publicPath || !/^\/data\/(images|story-images)\//.test(publicPath)) return;
+  if (!publicPath || !/^\/data\/(images|story-images)\/[^/]+\/[^/]+$/.test(publicPath)) return;
   try { await unlink(join(ROOT, publicPath)); } catch { /* already gone */ }
 }
 
-async function handleVocabularyGet(res) {
-  sendJson(res, 200, await loadVocabulary());
+async function handleVocabularyGet(res, auth) {
+  const db = dbFor(auth.token);
+  const [{ data: collections, error: collErr }, { data: cards, error: cardErr }] = await Promise.all([
+    db.from('collections').select('id, name, created_at'),
+    db.from('cards').select('id, collection_id, word_fa, word_en, image, created_at'),
+  ]);
+  if (collErr) return dbError(res, collErr);
+  if (cardErr) return dbError(res, cardErr);
+  sendJson(res, 200, {
+    collections: collections.map(c => ({ id: c.id, name: c.name, createdAt: new Date(c.created_at).getTime() })),
+    cards: cards.map(c => ({
+      id: c.id, collectionId: c.collection_id, word_fa: c.word_fa, word_en: c.word_en,
+      image: c.image, createdAt: new Date(c.created_at).getTime(),
+    })),
+  });
 }
 
 async function readJsonBody(req) {
@@ -687,7 +694,7 @@ async function readJsonBody(req) {
   return JSON.parse(Buffer.concat(chunks).toString());
 }
 
-async function handleCreateCollection(req, res) {
+async function handleCreateCollection(req, res, auth) {
   let name = '';
   try { ({ name = '' } = await readJsonBody(req)); }
   catch { return sendJson(res, 400, { error: 'Malformed request body.' }); }
@@ -695,65 +702,63 @@ async function handleCreateCollection(req, res) {
   name = name.trim().slice(0, 40);
   if (!name) return sendJson(res, 400, { error: 'Give the collection a name.' });
 
-  const collection = { id: newId('coll'), name, createdAt: Date.now() };
-  try {
-    await mutateVocabulary(data => { data.collections.push(collection); });
-    sendJson(res, 200, collection);
-  } catch (e) {
-    sendJson(res, 500, { error: e.message });
-  }
+  const db = dbFor(auth.token);
+  const id = newId('coll');
+  const { error } = await db.from('collections').insert({ id, owner_id: auth.user.id, name });
+  if (error) return dbError(res, error);
+  sendJson(res, 200, { id, name, createdAt: Date.now() });
 }
 
-async function handleDeleteCollection(id, res) {
+async function handleDeleteCollection(id, res, auth) {
+  const db = dbFor(auth.token);
   try {
-    const removedImages = [];
-    await mutateVocabulary(data => {
-      data.collections = data.collections.filter(c => c.id !== id);
-      data.cards = data.cards.filter(c => {
-        if (c.collectionId !== id) return true;
-        removedImages.push(c.image);
-        return false;
-      });
-    });
-    await Promise.all(removedImages.map(deleteImageFile));
+    const { data: removedCards } = await db.from('cards').select('image').eq('collection_id', id);
+    // Cards for this collection cascade-delete in Postgres (FK on delete
+    // cascade in the schema) once the collection row itself goes.
+    const { error } = await db.from('collections').delete().eq('id', id);
+    if (error) return dbError(res, error);
+    await Promise.all((removedCards || []).map(c => deleteImageFile(c.image)));
     sendJson(res, 200, { ok: true });
   } catch (e) {
     sendJson(res, 500, { error: e.message });
   }
 }
 
-async function handleAddCard(collectionId, req, res) {
+async function handleAddCard(collectionId, req, res, auth) {
   let word_fa, word_en, image;
   try { ({ word_fa, word_en, image } = await readJsonBody(req)); }
   catch { return sendJson(res, 400, { error: 'Malformed request body.' }); }
 
   if (!word_fa || !image) return sendJson(res, 400, { error: 'Missing word or picture.' });
 
+  const db = dbFor(auth.token);
   try {
-    const id = newId('card');
-    const imagePath = await saveImageFile(id, image);
-    const card = { id, collectionId, word_fa, word_en: word_en || '', image: imagePath, createdAt: Date.now() };
+    // RLS already keeps this select to the caller's own collections — an
+    // empty result means either it never existed or it isn't theirs, and
+    // either way the right answer is the same "no longer exists" message.
+    const { data: coll } = await db.from('collections').select('id').eq('id', collectionId).maybeSingle();
+    if (!coll) throw new Error('That collection no longer exists.');
 
-    await mutateVocabulary(data => {
-      if (!data.collections.some(c => c.id === collectionId)) {
-        throw new Error('That collection no longer exists.');
-      }
-      data.cards.push(card);
-    });
-    sendJson(res, 200, card);
+    const id = newId('card');
+    const imagePath = await saveImageFile(auth.user.id, id, image);
+    const card = { id, owner_id: auth.user.id, collection_id: collectionId, word_fa, word_en: word_en || '', image: imagePath };
+
+    const { error } = await db.from('cards').insert(card);
+    if (error) throw error;
+
+    sendJson(res, 200, { id, collectionId, word_fa, word_en: word_en || '', image: imagePath, createdAt: Date.now() });
   } catch (e) {
     sendJson(res, 500, { error: e.message });
   }
 }
 
-async function handleDeleteCard(id, res) {
+async function handleDeleteCard(id, res, auth) {
+  const db = dbFor(auth.token);
   try {
-    let imageToRemove = null;
-    await mutateVocabulary(data => {
-      imageToRemove = data.cards.find(c => c.id === id)?.image || null;
-      data.cards = data.cards.filter(c => c.id !== id);
-    });
-    if (imageToRemove) await deleteImageFile(imageToRemove);
+    const { data: card } = await db.from('cards').select('image').eq('id', id).maybeSingle();
+    const { error } = await db.from('cards').delete().eq('id', id);
+    if (error) return dbError(res, error);
+    if (card?.image) await deleteImageFile(card.image);
     sendJson(res, 200, { ok: true });
   } catch (e) {
     sendJson(res, 500, { error: e.message });
@@ -784,32 +789,54 @@ createServer(async (req, res) => {
   const { pathname } = new URL(req.url, `http://${req.headers.host}`);
 
   try {
-    if (pathname === '/api/voices'     && req.method === 'GET')  return await handleVoices(res);
+    // Every /api/... route below spends API-key money and/or touches user
+    // data, so every one of them requires a signed-in user first.
+    if (pathname === '/api/voices'     && req.method === 'GET')  return await handleVoices(req, res);
     if (pathname === '/api/tts'        && req.method === 'POST') return await handleTts(req, res);
-    if (pathname === '/api/story'      && req.method === 'POST') return await handleStory(req, res);
-    if (pathname === '/api/card'       && req.method === 'POST') return await handleCard(req, res);
-    if (pathname === '/api/vocabulary' && req.method === 'GET')  return await handleVocabularyGet(res);
-    if (pathname === '/api/stories'    && req.method === 'GET')  return await handleStoriesGet(res);
-    if (pathname === '/api/collections' && req.method === 'POST') return await handleCreateCollection(req, res);
+
+    if (pathname === '/api/story' && req.method === 'POST') {
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleStory(req, res, auth);
+    }
+    if (pathname === '/api/card' && req.method === 'POST') {
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleCard(req, res);
+    }
+    if (pathname === '/api/vocabulary' && req.method === 'GET') {
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleVocabularyGet(res, auth);
+    }
+    if (pathname === '/api/stories' && req.method === 'GET') {
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleStoriesGet(res, auth);
+    }
+    if (pathname === '/api/collections' && req.method === 'POST') {
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleCreateCollection(req, res, auth);
+    }
 
     const storyMatch = pathname.match(/^\/api\/stories\/([^/]+)$/);
     if (storyMatch && req.method === 'DELETE') {
-      return await handleDeleteStory(decodeURIComponent(storyMatch[1]), res);
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleDeleteStory(decodeURIComponent(storyMatch[1]), res, auth);
     }
 
     const collMatch  = pathname.match(/^\/api\/collections\/([^/]+)$/);
     if (collMatch && req.method === 'DELETE') {
-      return await handleDeleteCollection(decodeURIComponent(collMatch[1]), res);
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleDeleteCollection(decodeURIComponent(collMatch[1]), res, auth);
     }
 
     const cardsMatch = pathname.match(/^\/api\/collections\/([^/]+)\/cards$/);
     if (cardsMatch && req.method === 'POST') {
-      return await handleAddCard(decodeURIComponent(cardsMatch[1]), req, res);
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleAddCard(decodeURIComponent(cardsMatch[1]), req, res, auth);
     }
 
     const cardMatch  = pathname.match(/^\/api\/cards\/([^/]+)$/);
     if (cardMatch && req.method === 'DELETE') {
-      return await handleDeleteCard(decodeURIComponent(cardMatch[1]), res);
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleDeleteCard(decodeURIComponent(cardMatch[1]), res, auth);
     }
 
     return await handleStatic(req, res, pathname);
@@ -821,5 +848,9 @@ createServer(async (req, res) => {
   if (!API_KEY) {
     console.warn('\n⚠  ELEVENLABS_API_KEY is not set — the app will load but stay silent.');
     console.warn('   Restart with: ELEVENLABS_API_KEY=sk_… node server.js\n');
+  }
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.warn('\n⚠  SUPABASE_URL/SUPABASE_ANON_KEY are not set — sign-in will fail.');
+    console.warn('   Restart with those set alongside the other env vars.\n');
   }
 });

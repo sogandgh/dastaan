@@ -1,11 +1,3 @@
-/* ============================================================
-   Dastaan — sign in / create account
-   Just the brand and the form, centered — nothing else competing for
-   attention on the one screen that's purely a gate, not the product.
-   Colors, radii, and shadows (none) all come from style.css's tokens —
-   nothing new invented.
-============================================================ */
-
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
@@ -38,9 +30,6 @@ button, input { font: inherit; color: inherit; }
   border-radius: 6px;
 }
 
-/* ── Stage: brand above, form below, both centered as one column.
-   A generous gap between them so the panel doesn't read as glued to
-   the title — it's the only other thing on the page. ── */
 .login-stage {
   min-height: 100vh;
   min-height: 100dvh;
@@ -148,9 +137,6 @@ button, input { font: inherit; color: inherit; }
 .password-toggle:hover { color: var(--ink-soft); }
 .password-toggle svg { width: 19px; height: 19px; }
 
-/* Password rules and the email error share .note.error — a plain line
-   that only exists when something's actually wrong, not a checklist
-   sitting there by default. */
 .note {
   font-size: 0.8rem;
   color: var(--ink-soft);

@@ -1,12 +1,4 @@
-/**
- * login.js — sign-in / create-account behaviour for Dastaan
- *
- * Design pass, not the real thing yet: every check below (email shape,
- * password rules, confirm-match) runs for real, but there's no backend
- * wired up — a well-formed submission always "succeeds" and moves on to
- * the app. When real auth lands, only the body of the submit handler
- * changes; the markup, validation, and states here stay as designed.
- */
+import { signUp, signIn, resetPassword, getSession } from './auth.js';
 
 const tabSignin   = document.getElementById('tab-signin');
 const tabSignup   = document.getElementById('tab-signup');
@@ -37,9 +29,6 @@ const EYE_OFF_ICON =
      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
    </svg>`;
 
-// Length-over-complexity is the current best-practice line, but "password
-// limitations, considered" was the ask, so this checks the classic four —
-// tuned to not be so strict a real parent gives up mid-signup.
 const RULES = [
   ['length',  '8+ characters',       s => s.length >= 8],
   ['upper',   'an uppercase letter', s => /[A-Z]/.test(s)],
@@ -78,9 +67,6 @@ function setMode(next) {
 tabSignin.addEventListener('click', () => setMode('signin'));
 tabSignup.addEventListener('click', () => setMode('signup'));
 
-/** Only surfaces what's still missing — nothing shown once it's all met,
- *  and nothing shown at all outside sign-up (sign-in doesn't re-check an
- *  existing password against today's rules). */
 function updatePasswordRules() {
   if (mode !== 'signup' || !passIn.value) {
     rulesEl.hidden = true;
@@ -96,9 +82,6 @@ function updatePasswordRules() {
 }
 passIn.addEventListener('input', updatePasswordRules);
 
-/** Same idea for email: quiet until it's actually invalid, and only
- *  checked once the parent has finished typing it (on blur), not while
- *  they're still mid-address. Clears itself the moment it's fixed. */
 function updateEmailError(force) {
   const value = emailIn.value.trim();
   if (!value || isValidEmail(value)) {
@@ -148,20 +131,47 @@ form.addEventListener('submit', async e => {
   submitBtn.disabled = true;
   statusEl.textContent = mode === 'signup' ? 'Creating your account…' : 'Signing in…';
 
-  // No backend yet — this is a design pass. Any well-formed submission
-  // succeeds so the rest of the app is reachable for review.
-  await new Promise(r => setTimeout(r, 550));
-  statusEl.textContent = "You're in.";
-  await new Promise(r => setTimeout(r, 350));
-  window.location.href = 'index.html';
+  try {
+    if (mode === 'signup') {
+      const { session } = await signUp(email, password);
+      if (!session) {
+        statusEl.textContent = `Almost there — check ${email} for a confirmation link.`;
+        submitBtn.disabled = false;
+        return;
+      }
+    } else {
+      await signIn(email, password);
+    }
+    statusEl.textContent = "You're in.";
+    await new Promise(r => setTimeout(r, 350));
+    window.location.href = 'index.html';
+  } catch (err) {
+    submitBtn.disabled = false;
+    fail(err.message);
+  }
 });
 
-forgotBtn.addEventListener('click', () => {
+forgotBtn.addEventListener('click', async () => {
   const email = emailIn.value.trim();
   statusEl.classList.remove('error');
-  statusEl.textContent = isValidEmail(email)
-    ? `If ${email} has an account, a reset link is on its way.`
-    : 'Enter your email above first.';
+  if (!isValidEmail(email)) {
+    updateEmailError(true);
+    statusEl.textContent = 'Enter your email above first.';
+    return;
+  }
+  forgotBtn.disabled = true;
+  try {
+    await resetPassword(email);
+    statusEl.textContent = `If ${email} has an account, a reset link is on its way.`;
+  } catch (err) {
+    fail(err.message);
+  } finally {
+    forgotBtn.disabled = false;
+  }
 });
 
 setMode('signin');
+
+getSession().then(session => {
+  if (session) window.location.href = 'index.html';
+});
