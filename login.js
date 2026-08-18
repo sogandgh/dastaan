@@ -122,7 +122,7 @@ form.addEventListener('submit', async e => {
 
   if (mode === 'signup') {
     const allMet = RULES.every(([, , test]) => test(password));
-    if (!allMet) { updatePasswordRules(); return fail('Your password doesn’t meet the requirements above.'); }
+    if (!allMet) { updatePasswordRules(); return fail('Doesn’t meet the requirements above.'); }
     if (password !== confirmIn.value) return fail("Passwords don't match.");
   } else if (!password) {
     return fail('Enter your password.');
@@ -135,7 +135,7 @@ form.addEventListener('submit', async e => {
     if (mode === 'signup') {
       const { session } = await signUp(email, password);
       if (!session) {
-        statusEl.textContent = `Almost there. Check ${email} for a confirmation link.`;
+        statusEl.textContent = `Check ${email} to confirm.`;
         submitBtn.disabled = false;
         return;
       }
@@ -154,13 +154,13 @@ forgotBtn.addEventListener('click', async () => {
   statusEl.classList.remove('error');
   if (!isValidEmail(email)) {
     updateEmailError(true);
-    statusEl.textContent = 'Enter your email above first.';
+    statusEl.textContent = 'Enter your email first.';
     return;
   }
   forgotBtn.disabled = true;
   try {
     await resetPassword(email);
-    statusEl.textContent = `If ${email} has an account, a reset link is on its way.`;
+    statusEl.textContent = `Sent, if ${email} has an account.`;
   } catch (err) {
     fail(err.message);
   } finally {

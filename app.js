@@ -47,7 +47,7 @@ async function copyDiagnostics() {
 
   try {
     await navigator.clipboard.writeText(text);
-    showError('Copied. Paste it wherever you’re reporting the issue.');
+    showError('Copied.');
   } catch {
     diagnosticsOutput.value = text;
     diagnosticsOutput.hidden = false;
@@ -555,13 +555,13 @@ async function startStory() {
 
   const custom = promptEl.value.trim();
   if (!selectedTheme && !custom) {
-    setupNote.textContent = 'Pick a focus above, or type what the story should be about.';
+    setupNote.textContent = 'Pick a focus, or type your own.';
     setupNote.classList.add('error');
     return;
   }
 
   setupNote.classList.remove('error');
-  setupNote.textContent = 'Writing the story and drawing the pictures';
+  setupNote.textContent = 'Writing your story…';
   setupNote.classList.add('is-loading');
   loadingBar.hidden = false;
   startBtn.textContent = 'Cancel';
@@ -768,7 +768,7 @@ async function refreshVoices() {
       setVoice(preferred.voice_id);
       voiceSelect.value = preferred.voice_id;
     }
-    statusEl.textContent = `${voices.length} voices available.`;
+    statusEl.textContent = `${voices.length} voices.`;
   } catch (e) {
     statusEl.textContent = e.message;
     statusEl.classList.add('error');
