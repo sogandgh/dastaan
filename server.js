@@ -1,18 +1,30 @@
 /**
- * server.js — static file server + ElevenLabs proxy
+ * server.js — static file server + ElevenLabs/OpenAI proxy + Supabase gateway
  *
  * Run with:
- *   ELEVENLABS_API_KEY=sk_… node server.js
+ *   npm install
+ *   ELEVENLABS_API_KEY=sk_… OPENAI_API_KEY=sk-… \
+ *   SUPABASE_URL=https://…supabase.co SUPABASE_ANON_KEY=sb_publishable_… \
+ *   node server.js
  *
- * The browser never sees the API key. The page calls /api/voices and /api/tts
- * on this server, which attaches the key from the environment and forwards the
- * request to ElevenLabs. Node's stdlib only — there is nothing to npm install.
+ * The browser never sees the ElevenLabs/OpenAI keys. The page calls
+ * /api/voices, /api/tts, /api/story, /api/card on this server, which
+ * attaches the right key from the environment and forwards the request.
  */
 
 import { createServer } from 'node:http';
 import { readFile, writeFile, appendFile, mkdir, unlink } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
+
+// supabase-js always spins up a realtime client, which needs a global
+// WebSocket constructor — present natively from Node 22 on, but not on
+// older Node (the droplet runs 18), where createClient() would otherwise
+// throw synchronously and crash the whole server on startup. Nothing here
+// actually uses realtime subscriptions; this only exists to satisfy that
+// constructor.
+if (!globalThis.WebSocket) globalThis.WebSocket = WebSocket;
 
 const PORT        = process.env.PORT || 8000;
 const API_KEY     = process.env.ELEVENLABS_API_KEY;
