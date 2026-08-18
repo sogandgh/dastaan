@@ -443,26 +443,27 @@ async function handleStory(req, res, auth) {
   // a JSON blob that gets read and rewritten on every future story would
   // only get slower and heavier over time), then save the story row itself
   // — cached against `cacheKey` above so this exact request is never paid
-  // for or waited on twice.
-  const id = newId('story');
+  // for or waited on twice. The filename prefix is just a filename, not a
+  // database key, so it can keep using the app's own id scheme — only the
+  // `stories` row itself needs a real uuid, which Postgres generates below.
+  const fileId = newId('story');
   const savedScenes = await Promise.all(scenes.map(async (s, i) =>
     images[i]
-      ? { text: s.text, image: await saveImageFile(auth.user.id, `${id}-${i}`, `data:image/png;base64,${images[i]}`, STORY_IMAGES_DIR) }
+      ? { text: s.text, image: await saveImageFile(auth.user.id, `${fileId}-${i}`, `data:image/png;base64,${images[i]}`, STORY_IMAGES_DIR) }
       : { text: s.text, image: null }
   ));
 
-  const { error: insertErr } = await db.from('stories').insert({
-    id,
+  const { data: saved, error: insertErr } = await db.from('stories').insert({
     owner_id: auth.user.id,
     cache_key: cacheKey,
     label: String(label).trim() || String(prompt).trim() || 'A story',
     minutes,
     characters,
     scenes: savedScenes,
-  });
+  }).select('id').single();
   if (insertErr) return dbError(res, insertErr);
 
-  sendJson(res, 200, { id, characters, scenes: savedScenes });
+  sendJson(res, 200, { id: saved.id, characters, scenes: savedScenes });
 }
 
 async function handleStoriesGet(res, auth) {
@@ -703,10 +704,11 @@ async function handleCreateCollection(req, res, auth) {
   if (!name) return sendJson(res, 400, { error: 'Give the collection a name.' });
 
   const db = dbFor(auth.token);
-  const id = newId('coll');
-  const { error } = await db.from('collections').insert({ id, owner_id: auth.user.id, name });
+  const { data, error } = await db
+    .from('collections').insert({ owner_id: auth.user.id, name })
+    .select('id, name, created_at').single();
   if (error) return dbError(res, error);
-  sendJson(res, 200, { id, name, createdAt: Date.now() });
+  sendJson(res, 200, { id: data.id, name: data.name, createdAt: new Date(data.created_at).getTime() });
 }
 
 async function handleDeleteCollection(id, res, auth) {
@@ -739,14 +741,16 @@ async function handleAddCard(collectionId, req, res, auth) {
     const { data: coll } = await db.from('collections').select('id').eq('id', collectionId).maybeSingle();
     if (!coll) throw new Error('That collection no longer exists.');
 
-    const id = newId('card');
-    const imagePath = await saveImageFile(auth.user.id, id, image);
-    const card = { id, owner_id: auth.user.id, collection_id: collectionId, word_fa, word_en: word_en || '', image: imagePath };
+    // The filename on disk is just a filename, not a database key, so it
+    // can keep using the app's own id scheme — only the `cards` row itself
+    // needs a real uuid, which Postgres generates on insert below.
+    const imagePath = await saveImageFile(auth.user.id, newId('card'), image);
+    const card = { owner_id: auth.user.id, collection_id: collectionId, word_fa, word_en: word_en || '', image: imagePath };
 
-    const { error } = await db.from('cards').insert(card);
+    const { data, error } = await db.from('cards').insert(card).select('id, created_at').single();
     if (error) throw error;
 
-    sendJson(res, 200, { id, collectionId, word_fa, word_en: word_en || '', image: imagePath, createdAt: Date.now() });
+    sendJson(res, 200, { id: data.id, collectionId, word_fa, word_en: word_en || '', image: imagePath, createdAt: new Date(data.created_at).getTime() });
   } catch (e) {
     sendJson(res, 500, { error: e.message });
   }

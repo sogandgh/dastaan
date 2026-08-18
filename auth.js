@@ -1,12 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
-const SUPABASE_ANON_KEY = 'SUPABASE_ANON_KEY_PLACEHOLDER';
+const SUPABASE_URL = 'https://tqxmziaqqpfkvwkfbjnb.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_9Bg1yf8tPUlNtiSU1gKlfQ_UVCoiuSC';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export async function signUp(email, password) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({
+    email, password,
+    options: { emailRedirectTo: `${location.origin}/login.html` },
+  });
   if (error) throw new Error(friendlyAuthError(error));
   return data;
 }
