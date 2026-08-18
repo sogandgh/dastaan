@@ -256,6 +256,13 @@ body[data-mode="play"] .icon-btn:not(.back-btn) { display: none; }
   padding: 92px clamp(16px, 4vw, 40px) 56px;
 }
 
+/* Story setup: Lily sits 40% further from the bottom edge than everywhere
+   else — the "Tonight's story" panel reads better with a bit more air
+   under her feet than the flashcard screen needs. */
+body[data-mode="setup"] .stage {
+  padding-bottom: 78px; /* 56px * 1.4 */
+}
+
 /* ── The character, and how he travels between modes ── */
 .lily-holder {
   flex-shrink: 0;

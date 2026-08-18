@@ -80,6 +80,13 @@ button, input { font: inherit; color: inherit; }
   flex-shrink: 0;
   transform: scale(0.8);
   transform-origin: bottom center;
+  /* transform doesn't shrink the box it's applied to, so the holder still
+     reserves its full unscaled ~635px height (611px stage + gap + shadow)
+     even though it paints at 80% of that — with a bottom transform-origin
+     the leftover ~127px of dead space sits invisibly above the character,
+     stretching the whole row and shoving the panel down with it. Pull that
+     reserved space back so the row's real height matches what's visible. */
+  margin-top: -127px;
 }
 /* Same contact shadow as the rest of the app — she's standing here, not floating. */
 .login-row .lily-holder::after {
@@ -219,7 +226,7 @@ button, input { font: inherit; color: inherit; }
 @media (max-width: 760px) {
   .login-stage { padding-top: 24px; gap: 12px; }
   .login-row { flex-direction: column; gap: 4px; }
-  .login-row .lily-holder { transform: scale(0.6); margin-bottom: -30px; }
+  .login-row .lily-holder { transform: scale(0.6); margin-top: -254px; margin-bottom: -30px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
