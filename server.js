@@ -44,7 +44,7 @@ const STORY_IMAGES_DIR = join(DATA_DIR, 'story-images');
 const API_ROOT = 'https://api.elevenlabs.io';
 const MODEL_ID = 'eleven_v3';
 const OUT_FMT  = 'mp3_44100_128';
-const VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.75, speed: 0.9 };
+const VOICE_SETTINGS = { stability: 0.75, similarity_boost: 0.75, speed: 0.9 };
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
