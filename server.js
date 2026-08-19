@@ -5,6 +5,10 @@ import { extname, join, normalize } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import { LANGUAGES, DEFAULT_LANGUAGE, languageOf } from './languages.js';
+import { checkLimit, formatRetryAfter } from './rateLimiter.js';
+
+const CARD_LIMIT  = { max: 15, windowMs: 60 * 60 * 1000 };
+const STORY_LIMIT = { max: 5,  windowMs: 24 * 60 * 60 * 1000 };
 
 function loadEnvFile(path) {
   let content;
@@ -316,6 +320,11 @@ async function handleStory(req, res, auth) {
   if (lookupErr) return dbError(res, lookupErr);
   if (existing) return sendJson(res, 200, existing);
 
+  const storyLimit = checkLimit('story', auth.user.id, STORY_LIMIT.max, STORY_LIMIT.windowMs);
+  if (!storyLimit.allowed) {
+    return sendJson(res, 429, { error: `That's today's stories used up. Try again in ${formatRetryAfter(storyLimit.retryAfterMs)}.` });
+  }
+
   const clientGone = new AbortController();
   req.on('close', () => clientGone.abort());
   const bail = () => clientGone.signal.aborted;
@@ -562,6 +571,11 @@ async function handleCard(req, res, auth) {
   }
   word = word.trim().slice(0, 60);
   if (!word) return sendJson(res, 400, { error: 'Type a word first.' });
+
+  const cardLimit = checkLimit('card', auth.user.id, CARD_LIMIT.max, CARD_LIMIT.windowMs);
+  if (!cardLimit.allowed) {
+    return sendJson(res, 429, { error: `That's this hour's cards used up. Try again in ${formatRetryAfter(cardLimit.retryAfterMs)}.` });
+  }
 
   try {
     const { fa, en } = await translateWord(word, normalizeLanguage(language), auth.user.email);
