@@ -126,8 +126,8 @@ const ELEVENLABS_FRIENDLY_ERROR = "The voice isn't working right now. Try again 
 const OPENAI_FRIENDLY_ERROR     = "Couldn't do that right now. Try again in a bit.";
 const ERROR_LOG_FILE = join(DATA_DIR, 'errors.log');
 
-async function logServerError(provider, detail) {
-  const line = `[${new Date().toISOString()}] ${provider}: ${detail}`;
+async function logServerError(provider, detail, who) {
+  const line = `[${new Date().toISOString()}]${who ? ` [${who}]` : ''} ${provider}: ${detail}`;
   console.error(line);
   try {
     await mkdir(DATA_DIR, { recursive: true });
@@ -135,14 +135,14 @@ async function logServerError(provider, detail) {
   } catch {  }
 }
 
-async function sendProviderError(res, status, provider, detail) {
-  await logServerError(provider, detail);
+async function sendProviderError(res, status, provider, detail, who) {
+  await logServerError(provider, detail, who);
   sendJson(res, status, { error: provider === 'elevenlabs' ? ELEVENLABS_FRIENDLY_ERROR : OPENAI_FRIENDLY_ERROR });
 }
 
-function requireKey(res) {
+function requireKey(res, who) {
   if (API_KEY) return true;
-  logServerError('elevenlabs', 'ELEVENLABS_API_KEY is not set');
+  logServerError('elevenlabs', 'ELEVENLABS_API_KEY is not set', who);
   sendJson(res, 500, { error: ELEVENLABS_FRIENDLY_ERROR });
   return false;
 }
@@ -159,13 +159,14 @@ async function upstreamError(upstream) {
 }
 
 async function handleVoices(req, res) {
-  if (!(await requireAuth(req, res))) return;
-  if (!requireKey(res)) return;
+  const auth = await requireAuth(req, res);
+  if (!auth) return;
+  if (!requireKey(res, auth.user.email)) return;
 
   const upstream = await fetchWithTimeout(`${API_ROOT}/v2/voices?page_size=100`, {
     headers: { 'xi-api-key': API_KEY },
   }, 10000);
-  if (!upstream.ok) return sendProviderError(res, upstream.status, 'elevenlabs', await upstreamError(upstream));
+  if (!upstream.ok) return sendProviderError(res, upstream.status, 'elevenlabs', await upstreamError(upstream), auth.user.email);
 
   const data = await upstream.json();
   sendJson(res, 200, {
@@ -178,8 +179,9 @@ async function handleVoices(req, res) {
 }
 
 async function handleTts(req, res) {
-  if (!(await requireAuth(req, res))) return;
-  if (!requireKey(res)) return;
+  const auth = await requireAuth(req, res);
+  if (!auth) return;
+  if (!requireKey(res, auth.user.email)) return;
 
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -202,7 +204,7 @@ async function handleTts(req, res) {
     },
     30000
   );
-  if (!upstream.ok) return sendProviderError(res, upstream.status, 'elevenlabs', await upstreamError(upstream));
+  if (!upstream.ok) return sendProviderError(res, upstream.status, 'elevenlabs', await upstreamError(upstream), auth.user.email);
 
   const audio = Buffer.from(await upstream.arrayBuffer());
   res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': audio.length });
@@ -280,7 +282,7 @@ function buildUserPrompt({ prompt, focus }) {
 
 async function handleStory(req, res, auth) {
   if (!OPENAI_KEY) {
-    return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set');
+    return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set', auth.user.email);
   }
   const db = dbFor(auth.token);
 
@@ -342,7 +344,7 @@ async function handleStory(req, res, auth) {
       const body = await upstream.json();
       detail = body?.error?.message || detail;
     } catch {  }
-    return sendProviderError(res, upstream.status, 'openai', detail);
+    return sendProviderError(res, upstream.status, 'openai', detail, auth.user.email);
   }
 
   const data = await upstream.json();
@@ -356,7 +358,7 @@ async function handleStory(req, res, auth) {
     scenes = null;
   }
   if (!Array.isArray(scenes) || scenes.length === 0 || !scenes.every(s => s?.text)) {
-    return sendProviderError(res, 502, 'openai', `Malformed scenes JSON: ${jsonText.slice(0, 500)}`);
+    return sendProviderError(res, 502, 'openai', `Malformed scenes JSON: ${jsonText.slice(0, 500)}`, auth.user.email);
   }
 
   const images = await Promise.all(scenes.map(async (s, i) => {
@@ -366,12 +368,12 @@ async function handleStory(req, res, auth) {
     for (let attempt = 0; attempt < 2; attempt++) {
       if (bail()) return null;
       try {
-        return await generateSceneImage(fullPrompt, clientGone.signal);
+        return await generateSceneImage(fullPrompt, clientGone.signal, auth.user.email);
       } catch (e) {
         lastErr = e;
       }
     }
-    if (!bail()) await logServerError('openai', `Scene ${i} image failed after 2 attempts: ${lastErr?.message || lastErr}`);
+    if (!bail()) await logServerError('openai', `Scene ${i} image failed after 2 attempts: ${lastErr?.message || lastErr}`, auth.user.email);
     return null;
   }));
   if (bail()) return;
@@ -443,7 +445,7 @@ markdown fences:
   rather than refusing.`;
 }
 
-async function translateWord(word, language) {
+async function translateWord(word, language, who) {
   const upstream = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
@@ -457,7 +459,7 @@ async function translateWord(word, language) {
     }),
   }, 20000);
   if (!upstream.ok) {
-    await logServerError('openai', await openaiErrorMessage(upstream));
+    await logServerError('openai', await openaiErrorMessage(upstream), who);
     throw new Error(OPENAI_FRIENDLY_ERROR);
   }
 
@@ -472,7 +474,7 @@ async function translateWord(word, language) {
   return { fa: parsed.fa, en: parsed.en || word };
 }
 
-async function generateCardImage(wordEn) {
+async function generateCardImage(wordEn, who) {
   const prompt =
     `${wordEn}, flat vector illustration for a children's flashcard, single subject ` +
     `centered, simple bold shapes, bright cheerful colors, soft shading, solid white ` +
@@ -490,20 +492,20 @@ async function generateCardImage(wordEn) {
     }),
   }, 45000);
   if (!upstream.ok) {
-    await logServerError('openai', await openaiErrorMessage(upstream));
+    await logServerError('openai', await openaiErrorMessage(upstream), who);
     throw new Error(OPENAI_FRIENDLY_ERROR);
   }
 
   const data = await upstream.json();
   const b64  = data.data?.[0]?.b64_json;
   if (!b64) {
-    await logServerError('openai', 'Image generation returned no b64_json');
+    await logServerError('openai', 'Image generation returned no b64_json', who);
     throw new Error(OPENAI_FRIENDLY_ERROR);
   }
   return b64;
 }
 
-async function generateSceneImage(sceneEn, signal) {
+async function generateSceneImage(sceneEn, signal, who) {
   const prompt =
     `${sceneEn}, flat vector illustration for a children's picture book, warm and ` +
     `cheerful, simple bold shapes, soft shading, gentle pastel background, no text, ` +
@@ -522,14 +524,14 @@ async function generateSceneImage(sceneEn, signal) {
     }),
   }, 45000, signal);
   if (!upstream.ok) {
-    await logServerError('openai', await openaiErrorMessage(upstream));
+    await logServerError('openai', await openaiErrorMessage(upstream), who);
     throw new Error(OPENAI_FRIENDLY_ERROR);
   }
 
   const data = await upstream.json();
   const b64  = data.data?.[0]?.b64_json;
   if (!b64) {
-    await logServerError('openai', 'Scene image generation returned no b64_json');
+    await logServerError('openai', 'Scene image generation returned no b64_json', who);
     throw new Error(OPENAI_FRIENDLY_ERROR);
   }
   return b64;
@@ -544,9 +546,9 @@ async function openaiErrorMessage(upstream) {
   }
 }
 
-async function handleCard(req, res) {
+async function handleCard(req, res, auth) {
   if (!OPENAI_KEY) {
-    return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set');
+    return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set', auth.user.email);
   }
 
   const chunks = [];
@@ -562,8 +564,8 @@ async function handleCard(req, res) {
   if (!word) return sendJson(res, 400, { error: 'Type a word first.' });
 
   try {
-    const { fa, en } = await translateWord(word, normalizeLanguage(language));
-    const image = await generateCardImage(en);
+    const { fa, en } = await translateWord(word, normalizeLanguage(language), auth.user.email);
+    const image = await generateCardImage(en, auth.user.email);
     sendJson(res, 200, { word_fa: fa, word_en: en, image: `data:image/png;base64,${image}` });
   } catch (e) {
     sendJson(res, 502, { error: e.message });
@@ -726,7 +728,7 @@ createServer(async (req, res) => {
     }
     if (pathname === '/api/card' && req.method === 'POST') {
       const auth = await requireAuth(req, res); if (!auth) return;
-      return await handleCard(req, res);
+      return await handleCard(req, res, auth);
     }
     if (pathname === '/api/vocabulary' && req.method === 'GET') {
       const auth = await requireAuth(req, res); if (!auth) return;
