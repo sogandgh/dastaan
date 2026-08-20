@@ -16,11 +16,13 @@ A language learning app for kids built around an animated character. Currently s
 | [ElevenLabs API](https://elevenlabs.io/docs) key | n/a | Text-to-speech model. Needs `text_to_speech` and `voices_read` permissions. Model is `eleven_v3`. |
 | [OpenAI API](https://platform.openai.com/api-keys) key | n/a | writes the stories, and generates the illustration for each custom flashcard. |
 | [Supabase](https://supabase.com) project | n/a | Real accounts (sign in/sign up) and where each family's vocabulary/stories live. Free tier is enough. |
+| [Ollama](https://ollama.com) + `llama-guard3:1b` | n/a | Checks story prompts and flashcard words before they reach OpenAI, so nothing inappropriate gets generated (or billed). Runs locally, no API cost. |
 
 ## How to run
 
 1. Create a free project at [supabase.com](https://supabase.com), then in its SQL Editor run `supabase/schema.sql` from this repo (creates the `collections`/`cards`/`stories` tables and their Row Level Security policies).
 2. From Project Settings → API, grab the **Project URL** and the **anon public** key (not `service_role`; that one's only for the migration steps below, never for the running app). They're public by design (Row Level Security is what actually protects the data).
+3. Install [Ollama](https://ollama.com), then `ollama pull llama-guard3:1b`. Leave `ollama serve` running (or `brew services start ollama` on macOS) before starting the app; story/card requests fail until it's reachable at `OLLAMA_URL` (default `http://localhost:11434`).
 
 ```bash
 git clone https://github.com/sogandgh/dastaan.git

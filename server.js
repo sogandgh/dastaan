@@ -6,6 +6,11 @@ import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import { LANGUAGES, DEFAULT_LANGUAGE, languageOf } from './languages.js';
 import { checkLimit, formatRetryAfter } from './rateLimiter.js';
+import { moderateText, warmUp as warmUpModeration } from './moderation.js';
+
+const STORY_REJECTED_MESSAGE = "That story idea isn't something we can turn into a bedtime story. Try a different idea.";
+const CARD_REJECTED_MESSAGE  = "That word isn't something we can make a flashcard for. Try a different word.";
+const MODERATION_UNAVAILABLE_MESSAGE = "Couldn't check that right now. Try again in a moment.";
 
 const CARD_LIMIT  = { max: 15, windowMs: 60 * 60 * 1000 };
 const STORY_LIMIT = { max: 5,  windowMs: 24 * 60 * 60 * 1000 };
@@ -320,6 +325,17 @@ async function handleStory(req, res, auth) {
   if (lookupErr) return dbError(res, lookupErr);
   if (existing) return sendJson(res, 200, existing);
 
+  try {
+    const moderation = await moderateText(userPrompt);
+    if (moderation.flagged) {
+      await logServerError('moderation', `Story prompt rejected (${moderation.reason}): ${userPrompt.slice(0, 200)}`, auth.user.email);
+      return sendJson(res, 400, { error: STORY_REJECTED_MESSAGE });
+    }
+  } catch (e) {
+    await logServerError('moderation', `Moderation check failed: ${e.message}`, auth.user.email);
+    return sendJson(res, 503, { error: MODERATION_UNAVAILABLE_MESSAGE });
+  }
+
   const storyLimit = checkLimit('story', auth.user.id, STORY_LIMIT.max, STORY_LIMIT.windowMs);
   if (!storyLimit.allowed) {
     return sendJson(res, 429, { error: `That's today's stories used up. Try again in ${formatRetryAfter(storyLimit.retryAfterMs)}.` });
@@ -572,6 +588,17 @@ async function handleCard(req, res, auth) {
   word = word.trim().slice(0, 60);
   if (!word) return sendJson(res, 400, { error: 'Type a word first.' });
 
+  try {
+    const moderation = await moderateText(word);
+    if (moderation.flagged) {
+      await logServerError('moderation', `Card word rejected (${moderation.reason}): ${word}`, auth.user.email);
+      return sendJson(res, 400, { error: CARD_REJECTED_MESSAGE });
+    }
+  } catch (e) {
+    await logServerError('moderation', `Moderation check failed: ${e.message}`, auth.user.email);
+    return sendJson(res, 503, { error: MODERATION_UNAVAILABLE_MESSAGE });
+  }
+
   const cardLimit = checkLimit('card', auth.user.id, CARD_LIMIT.max, CARD_LIMIT.windowMs);
   if (!cardLimit.allowed) {
     return sendJson(res, 429, { error: `That's this hour's cards used up. Try again in ${formatRetryAfter(cardLimit.retryAfterMs)}.` });
@@ -795,4 +822,7 @@ createServer(async (req, res) => {
     console.warn('\n⚠  SUPABASE_URL/SUPABASE_ANON_KEY are not set. Sign-in will fail.');
     console.warn('   Restart with those set alongside the other env vars.\n');
   }
+  warmUpModeration().then(ok => {
+    if (!ok) console.warn('\n⚠  Moderation model did not warm up. Story/card requests will fail until Ollama is reachable.\n');
+  });
 });
