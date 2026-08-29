@@ -14,10 +14,20 @@ none of them share memory.
 
 Ordered by actual impact, not by how easy each one is.
 
-1. ⬜ **HTTPS + a real domain.** The app is plain `http://` right now.
-   Real email/password auth over cleartext isn't okay at any user count.
-   Needs a domain, nginx (already installed on the droplet from an older
-   project) as a reverse proxy, and a free Let's Encrypt cert.
+1. ✅ **HTTPS.** Done, no purchased domain needed: `nip.io` gives a real
+   hostname (`134-199-143-137.nip.io`) that resolves straight to the
+   droplet's IP, free, no registration, which is all Let's Encrypt
+   needs for a normal domain-validated cert (the standard 90-day kind,
+   not the newer 160-hour bare-IP certs, less renewal to babysit).
+   nginx (already installed on the droplet from an older project) now
+   reverse-proxies 80/443 to the app; `server.js` was rebound from
+   `0.0.0.0` to `127.0.0.1` (a `HOST` env var, defaults to localhost)
+   so the app is only reachable through nginx, not directly on `:8000`
+   anymore, otherwise the whole point of adding HTTPS is one port
+   number away from being moot. Renewal is Certbot's own systemd
+   timer, already confirmed active. A purchased domain is still worth
+   doing eventually for a nicer URL, but it's no longer blocking
+   anything.
 2. ⬜ **Bigger droplet.** Currently 512MB, already fragile, too tight for
    concurrent image generation. No longer blocking moderation specifically
    (see Features shipped) but still worth doing for general headroom.
@@ -56,11 +66,14 @@ Ordered by actual impact, not by how easy each one is.
 
 ## Deployed
 
-Live on the droplet at `http://134.199.143.137:8000` (`/root/farsi-bluey`,
-`farsi-bluey.service`), running `main` as of commit `f84e5cd`, Node 22.
-The client is now the React build (`dist/`, built locally and `rsync`'d
-over, see item 2 above), server-side code unchanged. No domain or
-HTTPS yet, so sign-in currently goes over plain HTTP, see item 1 above.
+Live at **https://134-199-143-137.nip.io** (nginx in front, real
+Let's Encrypt cert, see item 1 above), backed by `/root/farsi-bluey` on
+the droplet (`farsi-bluey.service`), running `main` as of commit
+`62bb7d8`, Node 22. The old `http://134.199.143.137:8000` direct URL no
+longer works on purpose, the app now only listens on localhost, nginx
+is the only public entry point. The client is the React build (`dist/`,
+built locally and `rsync`'d over, see item 2 above), server-side code
+otherwise unchanged.
 
 ## Features shipped
 
