@@ -8,7 +8,7 @@ import { checkLimit, formatRetryAfter } from './rateLimiter.js';
 import { moderateText, warmUp as warmUpModeration } from './moderation.js';
 import {
   PORT, ELEVENLABS_API_KEY as API_KEY, OPENAI_API_KEY as OPENAI_KEY,
-  SUPABASE_URL, SUPABASE_ANON_KEY, OPENAI_MODEL, OPENAI_IMAGE_MODEL, DIST_DIR,
+  SUPABASE_URL, SUPABASE_ANON_KEY, OPENAI_MODEL, OPENAI_IMAGE_MODEL, DIST_DIR, DATA_DIR,
 } from './env.js';
 import { fetchWithTimeout, logServerError, openaiErrorMessage, ELEVENLABS_FRIENDLY_ERROR, OPENAI_FRIENDLY_ERROR } from './providerClient.js';
 import { newId, saveImageFile, deleteImageFile } from './imageStore.js';
@@ -471,6 +471,25 @@ async function handleDeleteCard(id, res, auth) {
   }
 }
 
+async function handleUserData(req, res, pathname) {
+  const rel = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
+  const file = join(DATA_DIR, rel.replace(/^\/data\//, ''));
+
+  if (!file.startsWith(DATA_DIR)) {
+    res.writeHead(403).end('Forbidden');
+    return;
+  }
+
+  try {
+    const body = await readFile(file);
+    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
+    res.end(body);
+  } catch {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not found');
+  }
+}
+
 async function handleStatic(req, res, pathname) {
 
   const rel  = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
@@ -554,6 +573,8 @@ createServer(async (req, res) => {
       const auth = await requireAuth(req, res); if (!auth) return;
       return await handleDeleteCard(decodeURIComponent(cardMatch[1]), res, auth);
     }
+
+    if (pathname.startsWith('/data/')) return await handleUserData(req, res, pathname);
 
     return await handleStatic(req, res, pathname);
   } catch (e) {
