@@ -1,0 +1,23 @@
+.card-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: var(--r-sm);
+  background: var(--sky-lo);
+  animation: panelIn 320ms var(--ease) both;
+}
+.card-preview img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #fff;
+}
+.card-preview p {
+  font-family: var(--lang-font);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ink);
+}

@@ -30,4 +30,38 @@ body[data-mode="play"] .backdrop {
 .stage {
   position: relative;
   z-index: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(20px, 5vw, 76px);
+  padding: 92px clamp(16px, 4vw, 40px) 56px;
+}
+body[data-mode="setup"] .stage {
+  padding-bottom: 78px;
+}
+
+.lily-holder {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: transform var(--mode-shift);
+}
+.lily-holder:active { transform: scale(0.98); }
+
+.lily-holder::after {
+  content: '';
+  width: 100px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(46, 42, 40, 0.14);
+}
+
+.panel {
+  display: flex;
+  animation: panelIn 460ms var(--ease) both;
 }

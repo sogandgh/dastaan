@@ -1,13 +1,42 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppShellProvider, useAppShell } from '../context/AppShellContext';
+import { ToastProvider, useToast } from '../context/ToastContext';
 import { Topbar } from './Topbar';
 import { SettingsModal } from './SettingsModal';
+import { Lily } from './Lily';
+import { Toast } from './Toast';
+import { LearnPanel } from './LearnPanel';
 import { languageOf } from '../../languages.js';
+import { narrator } from '../lib/narrator';
+import { listVoices } from '../lib/voices';
 import './AppShell.css';
 
-function AppShellChrome({ children }: { children: ReactNode }) {
+const GREETINGS = ['سلام', 'خوبی؟', 'خداحافظ'];
+
+function AppShellChrome() {
   const { mode, setMode, language, setLanguage } = useAppShell();
+  const { showToast } = useToast();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const greetingIndex = useRef(0);
+
+  useEffect(() => {
+    narrator.onError(showToast);
+    narrator.setVoicesReady(listVoices().catch(() => []));
+    document.addEventListener('pointerdown', narrator.unlockAudioForSession, { capture: true });
+    return () => document.removeEventListener('pointerdown', narrator.unlockAudioForSession, { capture: true });
+  }, [showToast]);
+
+  useEffect(() => {
+    narrator.lipSync.setElements(document.getElementById('lily'), stageRef.current, null);
+  }, []);
+
+  function tapLily() {
+    if (mode === 'play') return;
+    const greeting = GREETINGS[greetingIndex.current % GREETINGS.length];
+    greetingIndex.current += 1;
+    narrator.speakText(greeting, () => showToast('Pick a narrator voice in Settings first.'));
+  }
 
   return (
     <>
@@ -23,7 +52,13 @@ function AppShellChrome({ children }: { children: ReactNode }) {
       />
 
       <main className="stage" id="main-stage">
-        {children}
+        <Lily ref={stageRef} onTap={tapLily} />
+        {mode === 'learn' && <LearnPanel />}
+        {mode !== 'learn' && (
+          <section className="panel">
+            <p>Stories land in the next module of this migration.</p>
+          </section>
+        )}
       </main>
 
       <SettingsModal
@@ -32,14 +67,18 @@ function AppShellChrome({ children }: { children: ReactNode }) {
         language={language}
         onLanguageChange={setLanguage}
       />
+
+      <Toast />
     </>
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell() {
   return (
     <AppShellProvider>
-      <AppShellChrome>{children}</AppShellChrome>
+      <ToastProvider>
+        <AppShellChrome />
+      </ToastProvider>
     </AppShellProvider>
   );
 }
