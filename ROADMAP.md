@@ -21,6 +21,11 @@ Ordered by actual impact, not by how easy each one is.
 2. ⬜ **Bigger droplet.** Currently 512MB, already fragile, too tight for
    concurrent image generation. No longer blocking moderation specifically
    (see Features shipped) but still worth doing for general headroom.
+   Confirmed the hard way deploying the React client: `tsc -b`/`vite build`
+   get OOM-killed on this box. Deploys now build `dist/` locally and
+   `rsync` it over rather than building on the droplet, works fine, but
+   it means the droplet can never build its own client until this is
+   bigger, worth knowing before scripting deploys further.
 3. ✅ **Node 18 → 22+ on the droplet.** Done. Turned out to be a hard
    blocker, not just a deprecation warning: LangGraph's checkpoint code
    needs the global `crypto` API, which Node 18 doesn't expose, so
@@ -50,9 +55,10 @@ Ordered by actual impact, not by how easy each one is.
 ## Deployed
 
 Live on the droplet at `http://134.199.143.137:8000` (`/root/farsi-bluey`,
-`farsi-bluey.service`), running `main` as of commit `986777f`, Node 22.
-No domain or HTTPS yet, so sign-in currently goes over plain HTTP, see
-item 1 above.
+`farsi-bluey.service`), running `main` as of commit `f84e5cd`, Node 22.
+The client is now the React build (`dist/`, built locally and `rsync`'d
+over, see item 2 above), server-side code unchanged. No domain or
+HTTPS yet, so sign-in currently goes over plain HTTP, see item 1 above.
 
 ## Features shipped
 
@@ -63,15 +69,14 @@ item 1 above.
   Swedish-equivalent word bank in `src/lib/builtinWords.ts`
 - ✅ Per-user rate limiting (`rateLimiter.js`): 15 flashcards/hour, 5
   stories/day
-- 🟡 Content moderation (`moderation.js`): blocklist fast path +
+- ✅ Content moderation (`moderation.js`): blocklist fast path +
   [OpenAI's Moderation API](https://platform.openai.com/docs/guides/moderation).
   Originally built on a locally-hosted Llama Guard 3 1B via Ollama, but
   switched after head-to-head testing on the same real cases showed
   OpenAI's free endpoint matched or beat it (including a case Llama
   Guard's default categories missed entirely), with none of the RAM/
   infra cost of self-hosting. Uses the same `OPENAI_API_KEY` already
-  required, nothing extra to run. Ready to deploy, no longer blocked on
-  the RAM upgrade.
+  required, nothing extra to run.
 - ✅ Server refactor + testing (committed): `server.js` split into
   `env.js` / `messages.js` / `providerClient.js` / `imageStore.js`;
   story generation rebuilt as a LangGraph pipeline
@@ -80,8 +85,7 @@ item 1 above.
   runner, mocked `fetch`, no real API calls) covering moderation
   rejection, the moderation-unavailable path, malformed-JSON retry, rate
   limiting, upstream errors, and client disconnects.
-- 🟡 Client rewritten in React + TypeScript (`react-typescript-migration`
-  branch, not yet merged to `main` or deployed). Vite build, `strict`
+- ✅ Client rewritten in React + TypeScript. Vite build, `strict`
   TypeScript, Vitest + React Testing Library. Same backend, same
   `/api/*` contract, no server-side behavior changes beyond how
   `server.js` serves the client (Vite's `dist/` build plus an SPA
@@ -89,9 +93,12 @@ item 1 above.
   ported and covered by real tests: login/auth/routing, the app shell
   (topbar, settings, the audio/lip-sync engine driving the Lily
   mascot), flashcards and the add-word flow, story setup and playback.
-  Needs a review of the running app before merging and deploying, see
-  the plan file this migration worked from for the full module
-  breakdown.
+  Merged to `main` and deployed without a live click-through of the
+  authenticated screens first (couldn't create a throwaway Supabase
+  test account, this project validates signup email domains for real),
+  verified instead by a real test suite plus a clean build/console at
+  every step. Worth an actual pass through the live app soon to catch
+  anything that only shows up with a real signed-in session.
 
 ## Testing
 
