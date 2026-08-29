@@ -39,6 +39,16 @@
 }
 .note.error { color: var(--coral); }
 .note:empty { display: none; }
+.note.is-loading::after {
+  content: '';
+  animation: dots 1.4s steps(4, end) infinite;
+}
+@keyframes dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+}
 
 .start-btn {
   padding: 16px;

@@ -2,6 +2,8 @@ import { synthesize } from './speech';
 import { getVoice } from './preferences';
 
 type PlaybackOutcome = 'ended' | 'blocked' | 'stalled' | 'error' | 'stopped';
+export type StoryOutcome = PlaybackOutcome | 'finished' | 'no-voice';
+export type Scene = { text: string; image: string | null };
 
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
 
@@ -119,6 +121,8 @@ class Narrator {
   currentAudio: HTMLAudioElement | null = null;
   speakToken = 0;
   voicesReady: Promise<unknown> | null = null;
+  isPaused = false;
+  private clipWatchdog: { arm: () => void; disarm: () => void } | null = null;
   private errorCb: ((message: string) => void) | null = null;
 
   constructor() {
@@ -176,6 +180,7 @@ class Narrator {
         if (settled) return;
         settled = true;
         clearTimeout(watchdog);
+        this.clipWatchdog = null;
         this.lipSync.stop();
         if (outcome !== 'ended') {
           logEvent(`clip-${outcome}`, {
@@ -192,6 +197,7 @@ class Narrator {
         const remaining = (audio.duration || 10) - (audio.currentTime || 0);
         watchdog = setTimeout(() => done('stalled'), remaining * 1000 + 8000);
       };
+      this.clipWatchdog = { arm, disarm: () => clearTimeout(watchdog) };
 
       const analysed = this.lipSync.attach(audio);
 
@@ -239,6 +245,75 @@ class Narrator {
     const outcome = await this.playClip(url, token);
     if (token === this.speakToken && outcome !== 'ended') this.emitError(this.describePlaybackError(outcome));
   }
+
+  togglePause(): boolean {
+    if (!this.currentAudio) return this.isPaused;
+    this.isPaused = !this.isPaused;
+    if (this.isPaused) {
+      this.currentAudio.pause();
+      this.clipWatchdog?.disarm();
+    } else {
+      this.clipWatchdog?.arm();
+      this.currentAudio.play().catch(() => {});
+    }
+    return this.isPaused;
+  }
+
+  async speakStory(scenes: Scene[], onScene: (scene: Scene) => void, onNoVoice: () => void): Promise<StoryOutcome> {
+    const token = this.beginSpeaking();
+    this.isPaused = false;
+    const voiceId = await this.resolveVoice();
+    if (!voiceId) { onNoVoice(); return 'no-voice'; }
+
+    const LOOKAHEAD = 2;
+    const pending: Array<Promise<string> | null> = new Array(scenes.length).fill(null);
+    const start = (i: number) => {
+      if (i < scenes.length && !pending[i]) pending[i] = synthesize(scenes[i].text, voiceId);
+    };
+    for (let i = 0; i <= LOOKAHEAD; i++) start(i);
+
+    try {
+      const first = await pending[0];
+      if (token !== this.speakToken) return 'stopped';
+
+      if (scenes.length > 1) {
+        await Promise.race([pending[1], new Promise(r => setTimeout(r, 2000))]);
+        if (token !== this.speakToken) return 'stopped';
+      }
+
+      for (let i = 0; i < scenes.length; i++) {
+        const url = i === 0 ? first! : await pending[i]!;
+        if (token !== this.speakToken) return 'stopped';
+        start(i + LOOKAHEAD);
+
+        onScene(scenes[i]);
+        const outcome = await this.playClip(url, token);
+        if (token !== this.speakToken) return 'stopped';
+        if (outcome !== 'ended') {
+          this.emitError(this.describePlaybackError(outcome));
+          return outcome;
+        }
+      }
+    } catch (e) {
+      if (token === this.speakToken) this.emitError(e instanceof Error ? e.message : 'Something went wrong.');
+      logEvent('speak-story-error', { message: e instanceof Error ? e.message : String(e) });
+      return 'error';
+    }
+    return 'finished';
+  }
+}
+
+export function splitForNarration(text: string, firstMax = 150, restMax = 240): string[] {
+  const sentences = text.match(/[^.؟!…]+[.؟!…]*\s*/g) || [text];
+  const chunks: string[] = [];
+  let buf = '';
+  for (const s of sentences) {
+    const max = chunks.length === 0 ? firstMax : restMax;
+    if (buf && (buf + s).length > max) { chunks.push(buf.trim()); buf = s; }
+    else buf += s;
+  }
+  if (buf.trim()) chunks.push(buf.trim());
+  return chunks;
 }
 
 export const narrator = new Narrator();

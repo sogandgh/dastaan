@@ -6,6 +6,7 @@ import { SettingsModal } from './SettingsModal';
 import { Lily } from './Lily';
 import { Toast } from './Toast';
 import { LearnPanel } from './LearnPanel';
+import { StoryFlow } from './StoryFlow';
 import { languageOf } from '../../languages.js';
 import { narrator } from '../lib/narrator';
 import { listVoices } from '../lib/voices';
@@ -47,18 +48,13 @@ function AppShellChrome() {
         mode={mode}
         nativeLanguageName={languageOf(language).native}
         onModeChange={setMode}
-        onBack={() => setMode('setup')}
+        onBack={() => { narrator.beginSpeaking(); setMode('setup'); }}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <main className="stage" id="main-stage">
         <Lily ref={stageRef} onTap={tapLily} />
-        {mode === 'learn' && <LearnPanel />}
-        {mode !== 'learn' && (
-          <section className="panel">
-            <p>Stories land in the next module of this migration.</p>
-          </section>
-        )}
+        {mode === 'learn' ? <LearnPanel /> : <StoryFlow />}
       </main>
 
       <SettingsModal
