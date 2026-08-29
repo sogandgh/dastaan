@@ -1,1 +1,1 @@
-export type AppMode = 'learn' | 'setup' | 'play' | 'talk';
+export type AppMode = 'learn' | 'setup' | 'play' | 'talk' | 'game';

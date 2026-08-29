@@ -13,6 +13,7 @@ export function Topbar({ mode, nativeLanguageName, onModeChange, onBack, onOpenS
   const isLearn = mode === 'learn';
   const isStory = mode === 'setup' || mode === 'play';
   const isTalk = mode === 'talk';
+  const isGame = mode === 'game';
 
   return (
     <header className="topbar">
@@ -54,6 +55,15 @@ export function Topbar({ mode, nativeLanguageName, onModeChange, onBack, onOpenS
           onClick={() => onModeChange('talk')}
         >
           Talk
+        </button>
+        <button
+          type="button"
+          className={`mode-tab${isGame ? ' is-active' : ''}`}
+          role="tab"
+          aria-selected={isGame}
+          onClick={() => onModeChange('game')}
+        >
+          Game
         </button>
       </div>
 

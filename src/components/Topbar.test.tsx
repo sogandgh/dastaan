@@ -32,6 +32,17 @@ describe('Topbar', () => {
     expect(screen.getByRole('tab', { name: 'Talk' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Learn' })).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByRole('tab', { name: 'Story' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Game' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('marks the Game tab active in game mode, and nothing else', () => {
+    render(
+      <Topbar mode="game" nativeLanguageName="فارسی" onModeChange={vi.fn()} onBack={vi.fn()} onOpenSettings={vi.fn()} />,
+    );
+    expect(screen.getByRole('tab', { name: 'Game' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Learn' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Story' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Talk' })).toHaveAttribute('aria-selected', 'false');
   });
 
   it('calls onModeChange when a tab is clicked', async () => {
@@ -44,6 +55,8 @@ describe('Topbar', () => {
     expect(onModeChange).toHaveBeenCalledWith('setup');
     await user.click(screen.getByRole('tab', { name: 'Talk' }));
     expect(onModeChange).toHaveBeenCalledWith('talk');
+    await user.click(screen.getByRole('tab', { name: 'Game' }));
+    expect(onModeChange).toHaveBeenCalledWith('game');
   });
 
   it('calls onOpenSettings when the settings button is clicked', async () => {

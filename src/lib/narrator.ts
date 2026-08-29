@@ -113,6 +113,16 @@ class LipSync {
     };
     this.raf = requestAnimationFrame(tick);
   }
+
+  announce() {
+    this.stageEl?.classList.add('jumping');
+    setTimeout(() => this.stageEl?.classList.remove('jumping'), 600);
+  }
+
+  celebrate() {
+    this.stageEl?.classList.add('jumping', 'waving');
+    setTimeout(() => this.stageEl?.classList.remove('jumping', 'waving'), 900);
+  }
 }
 
 class Narrator {

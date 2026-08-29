@@ -10,6 +10,8 @@ export type Language = {
   typingNote: string;
   diacriticsNote: string;
   cultureNote: string;
+  celebrationLines: string[];
+  tryAgainLines: string[];
 };
 
 export const LANGUAGES: Record<LanguageCode, Language>;

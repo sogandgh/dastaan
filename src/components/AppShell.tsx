@@ -8,6 +8,7 @@ import { Toast } from './Toast';
 import { LearnPanel } from './LearnPanel';
 import { StoryFlow } from './StoryFlow';
 import { TalkPanel } from './TalkPanel';
+import { GamePanel } from './GamePanel';
 import { languageOf } from '../../languages.js';
 import { narrator } from '../lib/narrator';
 import { listVoices, ensureAllowedVoice } from '../lib/voices';
@@ -59,7 +60,10 @@ function AppShellChrome() {
 
       <main className="stage" id="main-stage">
         <Lily ref={stageRef} onTap={tapLily} />
-        {mode === 'learn' ? <LearnPanel /> : mode === 'talk' ? <TalkPanel /> : <StoryFlow />}
+        {mode === 'learn' ? <LearnPanel />
+          : mode === 'talk' ? <TalkPanel />
+          : mode === 'game' ? <GamePanel />
+          : <StoryFlow />}
       </main>
 
       <SettingsModal

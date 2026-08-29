@@ -8,6 +8,8 @@ A language learning app for kids built around an animated character. Currently s
 
 **Talk with the character.** Tap the mic, say something, get a short warm reply back in the same language, spoken aloud. It's an echo, not a test: unclear or unrecognizable speech never gets marked wrong, it's asked for warmly again instead.
 
+**A picture-matching game, built from your own flashcards.** The character says a word, four pictures appear, tap the right one. Skip any word, no penalty. A wrong guess gently shakes and steps aside, no red X, no score against you, just try one of the others. A right guess is a real moment, confetti, the character jumps and cheers, before the next word comes up.
+
 ## Screenshots
 
 ![Learn screen](docs/screenshot-learn.png)![Story setup screen](docs/screenshot-story-setup.png)![Story playing screen](docs/screenshot-story-playing.png)
@@ -93,4 +95,4 @@ npm test
 
 Runs both suites: `node --test` against `graphs/storyGraph.test.js` (the backend, `fetch` mocked, no real OpenAI or ElevenLabs calls, no API keys required), then `vitest run` against the client's component and hook tests. Run them separately with `npm run test:server` or `npm run test:client`; `npm run typecheck` and `npm run lint` cover the rest of the client's checks.
 
-The backend suite covers moderation rejection, moderation-unavailable, a full run with scene images, the malformed-JSON retry (and giving up after two attempts), rate limiting, an upstream OpenAI error, and a client disconnecting mid-request. The client suite covers the login/auth flow, the app shell (topbar, modal, settings), flashcards and the add-word flow, story setup/playback including the pause/resume and repeat states, and the Talk tab's recorder hook and mic/exchange flow.
+The backend suite covers moderation rejection, moderation-unavailable, a full run with scene images, the malformed-JSON retry (and giving up after two attempts), rate limiting, an upstream OpenAI error, and a client disconnecting mid-request. The client suite covers the login/auth flow, the app shell (topbar, modal, settings), flashcards and the add-word flow, story setup/playback including the pause/resume and repeat states, the Talk tab's recorder hook and mic/exchange flow, and the picture-matching game's round-picking logic and correct/wrong/skip flow.

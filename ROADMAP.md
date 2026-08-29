@@ -152,6 +152,25 @@ otherwise unchanged.
   secretly fa/sv-specific) by running it against a fake third
   language that isn't in the app at all. Recorded audio is forwarded
   to ElevenLabs and discarded, never written to disk.
+- ✅ Game tab (`GamePanel.tsx`, `lib/game.ts`, `lib/random.ts`): a
+  picture-matching game built entirely from the existing flashcards
+  (`useVocabulary`, no new data source). The character says a word,
+  four pictures appear, one right answer plus three distractors
+  guaranteed to have visually distinct images (`pickRound` refuses to
+  deal a round it can't make fair). A wrong tap shakes once, dims out,
+  and stays disabled, the round keeps going with the remaining
+  options, never a hard fail or a score held against the child. A
+  right tap triggers Lily's `jumping`/`waving` CSS animations (both
+  written for the original vanilla app, ported over in the React
+  migration, never actually triggered by anything until now),
+  confetti (`Confetti.tsx`, no library, plain CSS particles), a
+  checkmark badge on the tile, and one of six varied spoken
+  celebration lines per language (`languages.js`'s new
+  `celebrationLines`/`tryAgainLines`, generated and verified against
+  the real OpenAI API the same way the diacritics fix was, re-checked
+  afterwards for the same wrong-sukun-codepoint bug that turned up in
+  the Talk tab work, clean this time). Skip always available, no
+  penalty, just deals a new round.
 
 ## Testing
 

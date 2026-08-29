@@ -1,0 +1,118 @@
+.panel-game {
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: min(460px, 100%);
+  text-align: center;
+}
+
+.game-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.game-head h1 {
+  font-size: clamp(1.3rem, 3.4vw, 1.65rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.game-head p {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.resay-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--blue-deep);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  transition: transform 200ms var(--ease), color 200ms;
+}
+.resay-btn svg { width: 18px; height: 18px; }
+.resay-btn:hover { color: var(--coral); transform: scale(1.08); }
+
+.game-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+}
+
+.game-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--r-md);
+  background: var(--mint);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transition: transform 160ms var(--ease), opacity 200ms, filter 200ms;
+}
+.game-tile img {
+  position: absolute;
+  inset: 12px;
+  width: calc(100% - 24px);
+  height: calc(100% - 24px);
+  object-fit: contain;
+}
+.game-tile:hover:not(:disabled) { transform: translateY(-2px) scale(1.02); }
+.game-tile:active:not(:disabled) { transform: scale(0.97); }
+
+.game-tile.is-wrong {
+  opacity: 0.4;
+  filter: grayscale(0.7);
+  cursor: default;
+}
+
+.game-tile.is-shaking { animation: tileShake 420ms ease-in-out; }
+@keyframes tileShake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-8px); }
+  40%      { transform: translateX(7px); }
+  60%      { transform: translateX(-5px); }
+  80%      { transform: translateX(3px); }
+}
+
+.game-tile.is-correct {
+  animation: tilePop 480ms var(--ease);
+  box-shadow: 0 0 0 5px var(--blue-deep), var(--shadow-lg);
+}
+@keyframes tilePop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.game-tile-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--blue-deep);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  animation: checkPop 380ms var(--ease) both;
+}
+@keyframes checkPop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.game-skip {
+  width: auto;
+  padding: 12px 22px;
+}
