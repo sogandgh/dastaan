@@ -7,7 +7,7 @@ import { LANGUAGES, DEFAULT_LANGUAGE, languageOf } from './languages.js';
 import { checkLimit, formatRetryAfter } from './rateLimiter.js';
 import { moderateText, warmUp as warmUpModeration } from './moderation.js';
 import {
-  PORT, ELEVENLABS_API_KEY as API_KEY, OPENAI_API_KEY as OPENAI_KEY,
+  PORT, HOST, ELEVENLABS_API_KEY as API_KEY, OPENAI_API_KEY as OPENAI_KEY,
   SUPABASE_URL, SUPABASE_ANON_KEY, OPENAI_MODEL, OPENAI_IMAGE_MODEL, DIST_DIR, DATA_DIR,
 } from './env.js';
 import { fetchWithTimeout, logServerError, openaiErrorMessage, ELEVENLABS_FRIENDLY_ERROR, OPENAI_FRIENDLY_ERROR } from './providerClient.js';
@@ -650,8 +650,8 @@ createServer(async (req, res) => {
   } catch (e) {
     sendJson(res, 500, { error: e.message });
   }
-}).listen(PORT, () => {
-  console.log(`Dastaan → http://localhost:${PORT}`);
+}).listen(PORT, HOST, () => {
+  console.log(`Dastaan → http://${HOST}:${PORT}`);
   if (!API_KEY) {
     console.warn('\n⚠  ELEVENLABS_API_KEY is not set. The app will load but stay silent.');
     console.warn('   Restart with: ELEVENLABS_API_KEY=sk_… node server.js\n');

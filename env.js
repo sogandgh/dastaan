@@ -20,6 +20,7 @@ function loadEnvFile(path) {
 loadEnvFile(join(process.cwd(), '.env'));
 
 export const PORT = process.env.PORT || 8000;
+export const HOST = process.env.HOST || '127.0.0.1';
 export const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 export const SUPABASE_URL = process.env.SUPABASE_URL;
