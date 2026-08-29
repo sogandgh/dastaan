@@ -21,9 +21,11 @@ Ordered by actual impact, not by how easy each one is.
 2. ⬜ **Bigger droplet.** Currently 512MB, already fragile, too tight for
    concurrent image generation. No longer blocking moderation specifically
    (see Features shipped) but still worth doing for general headroom.
-3. ⬜ **Node 18 → 22+ on the droplet.** Already broke once (the
-   `supabase-js` WebSocket polyfill). Supabase is actively dropping
-   support for <20.
+3. ✅ **Node 18 → 22+ on the droplet.** Done. Turned out to be a hard
+   blocker, not just a deprecation warning: LangGraph's checkpoint code
+   needs the global `crypto` API, which Node 18 doesn't expose, so
+   every `/api/story` request was throwing `crypto is not defined`
+   until this landed.
 4. ⬜ **Supabase paid tier.** Free tier auto-pauses after a week of
    inactivity, thin backup guarantees.
 5. ⬜ **CI.** `npm test` exists and passes locally now (see Testing
@@ -44,6 +46,13 @@ Ordered by actual impact, not by how easy each one is.
     content).
 11. ⬜ Spend caps/alerts set directly in the OpenAI and ElevenLabs
     dashboards, as a backstop above the per-user rate limiter.
+
+## Deployed
+
+Live on the droplet at `http://134.199.143.137:8000` (`/root/farsi-bluey`,
+`farsi-bluey.service`), running `main` as of commit `986777f`, Node 22.
+No domain or HTTPS yet, so sign-in currently goes over plain HTTP, see
+item 1 above.
 
 ## Features shipped
 
