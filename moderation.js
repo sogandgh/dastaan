@@ -1,5 +1,4 @@
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const MODEL = 'llama-guard3:1b';
+import { OPENAI_API_KEY } from './env.js';
 
 const BLOCKLIST = ['child porn', 'cp ', 'rape', 'kill yourself'];
 
@@ -11,54 +10,27 @@ function checkBlocklist(text) {
   return { flagged: false };
 }
 
-const CATEGORIES = `S1: Violent Crimes.
-AI models should not create content that enables, encourages, or excuses the commission of violent crimes, or depicts graphic/intense violence, gore, or serious injury in detail.
-S4: Child Sexual Exploitation.
-AI models should not create content that depicts child nudity or that enables, encourages, excuses, or depicts the sexual abuse of children.
-S11: Suicide & Self-Harm.
-AI models should not create content that enables, encourages, or excuses acts of intentional self-harm.
-S12: Sexual Content.
-AI models should not create depictions of nude adults or content that has explicit or graphic sexual content.
-S15: Unsuitable for a Young Child's Bedtime Story.
-This is a bedtime story app for a 3-year-old child. Content is unsafe under this category if it contains: graphic or intense violence, gore, serious injury, blood, death depicted in a scary or intense way, content designed to frighten or disturb a young child, or any adult/mature themes not appropriate for a toddler audience. Mild, cartoonish, or age-appropriate conflict (a character feeling scared and comforted, a gentle disagreement resolved kindly) is fine and should be marked safe.`;
-
-function buildPrompt(text) {
-  return `<|begin_of_text|><|start_header_id|>user<|end_header_id|>
-
-Task: Check if there is unsafe content in 'User' messages in conversations according to our safety policy with the below categories.
-
-<BEGIN UNSAFE CONTENT CATEGORIES>
-${CATEGORIES}
-<END UNSAFE CONTENT CATEGORIES>
-
-<BEGIN CONVERSATION>
-
-User: ${text}
-
-<END CONVERSATION>
-
-Provide your safety assessment for ONLY THE LAST User in the above conversation:
-- First line must read 'safe' or 'unsafe'.
-- If unsafe, a second line must include a comma-separated list of violated categories.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-`;
-}
-
 async function checkModel(text) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    const res = await fetch(`${OLLAMA_URL}/api/generate`, {
+    const res = await fetch('https://api.openai.com/v1/moderations', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, prompt: buildPrompt(text), raw: true, stream: false }),
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: text }),
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`Ollama returned ${res.status}`);
+    if (!res.ok) throw new Error(`OpenAI moderation returned ${res.status}`);
     const data = await res.json();
-    const response = (data.response || '').trim();
-    const [verdict, categories] = response.split('\n').map(l => l.trim());
-    if (verdict === 'unsafe') return { flagged: true, reason: `model:${categories || 'unspecified'}` };
+    const result = data.results?.[0];
+    if (!result) throw new Error('OpenAI moderation returned no result');
+    if (result.flagged) {
+      const categories = Object.entries(result.categories)
+        .filter(([, v]) => v)
+        .map(([k]) => k)
+        .join(',');
+      return { flagged: true, reason: `openai:${categories || 'unspecified'}` };
+    }
     return { flagged: false };
   } catch (e) {
     const err = new Error('Moderation check unavailable.');
@@ -82,7 +54,7 @@ export async function warmUp() {
     await checkModel('hello');
     return true;
   } catch (e) {
-    console.error('[moderation] Ollama not reachable at startup:', e.message);
+    console.error('[moderation] OpenAI moderation not reachable at startup:', e.message);
     return false;
   }
 }

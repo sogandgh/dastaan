@@ -27,8 +27,13 @@ function jsonResponse(status, body) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
 }
 
-function safeOllamaResponse() {
-  return jsonResponse(200, { response: 'safe' });
+function safeModerationResponse() {
+  return jsonResponse(200, { results: [{ flagged: false, categories: {} }] });
+}
+
+function unsafeModerationResponse(categories) {
+  const flags = Object.fromEntries(categories.map(c => [c, true]));
+  return jsonResponse(200, { results: [{ flagged: true, categories: flags }] });
 }
 
 function validScenesBody() {
@@ -51,11 +56,11 @@ after(() => {
   globalThis.fetch = originalFetch;
 });
 
-test('rejects a flagged prompt without calling OpenAI', async () => {
-  let openaiCalled = false;
+test('rejects a flagged prompt without writing a story', async () => {
+  let storyWritten = false;
   mockFetch([
-    ['/api/generate', () => jsonResponse(200, { response: 'unsafe\nS15' })],
-    ['api.openai.com', () => { openaiCalled = true; return jsonResponse(200, validScenesBody()); }],
+    ['/v1/moderations', () => unsafeModerationResponse(['violence'])],
+    ['/v1/chat/completions', () => { storyWritten = true; return jsonResponse(200, validScenesBody()); }],
   ]);
 
   const result = await runStoryGraph({
@@ -69,12 +74,12 @@ test('rejects a flagged prompt without calling OpenAI', async () => {
 
   assert.equal(result.status, 'rejected');
   assert.equal(result.httpStatus, 400);
-  assert.equal(openaiCalled, false);
+  assert.equal(storyWritten, false);
 });
 
 test('reports moderation as unavailable when the check throws', async () => {
   mockFetch([
-    ['/api/generate', () => { throw new Error('connection refused'); }],
+    ['/v1/moderations', () => { throw new Error('connection refused'); }],
   ]);
 
   const result = await runStoryGraph({
@@ -92,7 +97,7 @@ test('reports moderation as unavailable when the check throws', async () => {
 
 test('writes a story and saves each scene image, skipping scenes with no image prompt', async () => {
   mockFetch([
-    ['/api/generate', safeOllamaResponse],
+    ['/v1/moderations', safeModerationResponse],
     ['/v1/chat/completions', () => jsonResponse(200, validScenesBody())],
     ['/v1/images/generations', () => jsonResponse(200, { data: [{ b64_json: Buffer.from('fake-png').toString('base64') }] })],
   ]);
@@ -120,7 +125,7 @@ test('writes a story and saves each scene image, skipping scenes with no image p
 test('retries once on malformed story JSON, then succeeds', async () => {
   let chatCalls = 0;
   mockFetch([
-    ['/api/generate', safeOllamaResponse],
+    ['/v1/moderations', safeModerationResponse],
     ['/v1/chat/completions', () => {
       chatCalls += 1;
       if (chatCalls === 1) return jsonResponse(200, { choices: [{ message: { content: 'not json' } }] });
@@ -148,7 +153,7 @@ test('retries once on malformed story JSON, then succeeds', async () => {
 test('gives up after two malformed story JSON attempts', async () => {
   let chatCalls = 0;
   mockFetch([
-    ['/api/generate', safeOllamaResponse],
+    ['/v1/moderations', safeModerationResponse],
     ['/v1/chat/completions', () => {
       chatCalls += 1;
       return jsonResponse(200, { choices: [{ message: { content: 'still not json' } }] });
@@ -171,7 +176,7 @@ test('gives up after two malformed story JSON attempts', async () => {
 
 test('passes through the upstream status when OpenAI rejects the request', async () => {
   mockFetch([
-    ['/api/generate', safeOllamaResponse],
+    ['/v1/moderations', safeModerationResponse],
     ['/v1/chat/completions', () => jsonResponse(401, { error: { message: 'bad key' } })],
   ]);
 
@@ -192,7 +197,7 @@ test('stops at the rate limit without writing a story', async () => {
   const userId = nextUserId();
   let chatCalls = 0;
   mockFetch([
-    ['/api/generate', safeOllamaResponse],
+    ['/v1/moderations', safeModerationResponse],
     ['/v1/chat/completions', () => { chatCalls += 1; return jsonResponse(200, validScenesBody()); }],
     ['/v1/images/generations', () => jsonResponse(200, { data: [{ b64_json: Buffer.from('fake-png').toString('base64') }] })],
   ]);
@@ -228,7 +233,7 @@ test('stops at the rate limit without writing a story', async () => {
 test('stops cleanly when the client disconnects before the story is written', async () => {
   let chatCalls = 0;
   mockFetch([
-    ['/api/generate', safeOllamaResponse],
+    ['/v1/moderations', safeModerationResponse],
     ['/v1/chat/completions', () => { chatCalls += 1; return jsonResponse(200, validScenesBody()); }],
   ]);
 
