@@ -171,13 +171,19 @@ otherwise unchanged.
   never a hard fail or a score held against the child. A right tap
   triggers Lily's `jumping`/`waving` CSS animations (both written for
   the original vanilla app, ported over in the React migration, never
-  actually triggered by anything until now) and a full-screen
-  celebration (`CelebrationOverlay.tsx`): a purple gradient wash
-  covering the whole viewport, a pulsing light/shimmer effect, and one
-  of three particle styles (sprinkles, stars, or balloons, picked at
-  random each time for variety) filling the screen, replacing an
-  earlier version that was a faint color tint confined to roughly the
-  card area. Both the celebration line and the wrong-answer line are a
+  actually triggered by anything until now) and a celebration sequence
+  (`CelebrationOverlay.tsx`): the tapped card pops, a soft radial glow
+  (warm yellow/pink fading through purple into full transparency,
+  centered on the tapped card rather than a flat full-screen color, so
+  the game stays visible underneath) washes over the screen, stars and
+  confetti burst outward from the card's exact position, and the
+  celebration word pops up as on-screen text while it's spoken. Went
+  through two design passes: the first was a flat, fully opaque purple
+  gradient with particles falling from the top of the screen, which
+  read as too heavy and disconnected from what the child actually
+  tapped, this version anchors everything to the tapped card and keeps
+  the game readable through it. Both the celebration line and the
+  wrong-answer line are a
   single fixed string per language (`languages.js`'s `celebrationLine`
   and `tryAgainLine`, deterministic rather than a random pick from
   several), generated once via a real OpenAI call and reused forever

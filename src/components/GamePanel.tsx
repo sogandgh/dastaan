@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { useAppShell } from '../context/AppShellContext';
 import { useToast } from '../context/ToastContext';
 import { useVocabulary } from '../lib/useVocabulary';
 import { pickRound, type GameRound } from '../lib/game';
 import { narrator } from '../lib/narrator';
 import { languageOf } from '../../languages.js';
-import { CelebrationOverlay } from './CelebrationOverlay';
+import { CelebrationOverlay, type CelebrationOrigin } from './CelebrationOverlay';
 import type { DeckItem } from '../lib/builtinWords';
 import './GamePanel.css';
+
+const CENTER_ORIGIN: CelebrationOrigin = { x: 50, y: 50 };
 
 export function GamePanel() {
   const { language } = useAppShell();
@@ -18,6 +20,7 @@ export function GamePanel() {
   const [shakeItem, setShakeItem] = useState<DeckItem | null>(null);
   const [correctItem, setCorrectItem] = useState<DeckItem | null>(null);
   const [celebrating, setCelebrating] = useState(false);
+  const [celebrationOrigin, setCelebrationOrigin] = useState<CelebrationOrigin>(CENTER_ORIGIN);
 
   const pool = Object.values(categories).flat();
   const lang = languageOf(language);
@@ -52,10 +55,15 @@ export function GamePanel() {
     narrator.speakText(round.target.word, onNoVoice);
   }
 
-  function handleChoice(item: DeckItem) {
+  function handleChoice(item: DeckItem, event: MouseEvent<HTMLButtonElement>) {
     if (!round || celebrating || wrongItems.includes(item)) return;
 
     if (item === round.target) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setCelebrationOrigin({
+        x: ((rect.left + rect.width / 2) / window.innerWidth) * 100,
+        y: ((rect.top + rect.height / 2) / window.innerHeight) * 100,
+      });
       setCorrectItem(item);
       setCelebrating(true);
       narrator.lipSync.celebrate();
@@ -63,7 +71,7 @@ export function GamePanel() {
       setTimeout(() => {
         setCelebrating(false);
         startRound(round.target.word);
-      }, 2000);
+      }, 2400);
     } else {
       setWrongItems(prev => [...prev, item]);
       setShakeItem(item);
@@ -120,7 +128,7 @@ export function GamePanel() {
               type="button"
               key={i}
               className={`game-tile${isWrong ? ' is-wrong' : ''}${isShaking ? ' is-shaking' : ''}${isCorrect ? ' is-correct' : ''}`}
-              onClick={() => handleChoice(item)}
+              onClick={e => handleChoice(item, e)}
               disabled={isWrong || celebrating}
               aria-label="Pick this picture"
             >
@@ -135,7 +143,13 @@ export function GamePanel() {
         Skip, next word
       </button>
 
-      <CelebrationOverlay show={celebrating} />
+      <CelebrationOverlay
+        show={celebrating}
+        origin={celebrationOrigin}
+        line={lang.celebrationLine}
+        dir={lang.dir}
+        font={lang.font}
+      />
     </section>
   );
 }

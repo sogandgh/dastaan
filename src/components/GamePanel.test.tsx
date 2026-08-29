@@ -88,7 +88,7 @@ describe('GamePanel', () => {
     expect(tiles[0]).toHaveClass('is-correct');
     expect(narrator.speakText).toHaveBeenLastCalledWith('آفرین، آفرین!', expect.any(Function));
 
-    act(() => { vi.advanceTimersByTime(2000); });
+    act(() => { vi.advanceTimersByTime(2400); });
     expect(pickRound).toHaveBeenCalledWith(items, 'الف');
   });
 
@@ -126,8 +126,36 @@ describe('GamePanel', () => {
     await tiles[0].click();
     expect(container.querySelector('.celebration-overlay')).toBeInTheDocument();
 
-    act(() => { vi.advanceTimersByTime(2000); });
+    act(() => { vi.advanceTimersByTime(2400); });
     expect(container.querySelector('.celebration-overlay')).not.toBeInTheDocument();
+  });
+
+  it('shows the deterministic celebration line as on-screen text during the burst', async () => {
+    vi.useFakeTimers();
+    renderPanel();
+    const tiles = screen.getAllByRole('button', { name: 'Pick this picture' });
+
+    await tiles[0].click();
+
+    expect(screen.getByText('آفرین، آفرین!')).toBeInTheDocument();
+  });
+
+  it('centers the celebration burst on the tapped card', async () => {
+    vi.useFakeTimers();
+    const { container } = renderPanel();
+    const tiles = screen.getAllByRole('button', { name: 'Pick this picture' });
+
+    tiles[0].getBoundingClientRect = () => ({
+      left: 100, top: 50, width: 80, height: 80, right: 180, bottom: 130, x: 100, y: 50, toJSON: () => {},
+    });
+    window.innerWidth = 400;
+    window.innerHeight = 800;
+
+    await tiles[0].click();
+
+    const overlay = container.querySelector('.celebration-overlay') as HTMLElement;
+    expect(overlay.style.getPropertyValue('--origin-x')).toBe('35%');
+    expect(overlay.style.getPropertyValue('--origin-y')).toBe('11.25%');
   });
 
   it('moves to a new round when Skip is clicked, without penalty', async () => {
