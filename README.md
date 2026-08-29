@@ -40,3 +40,23 @@ node server.js
 Open **http://localhost:8000**. It lands on the sign-in page first; create an account to get in. Voices load automatically from your ElevenLabs account; change which one it uses from the ⚙️ panel.
 
 `PORT` overrides the port (default `8000`); `OPENAI_MODEL` overrides the story model (default `gpt-5-mini`); `OPENAI_IMAGE_MODEL` overrides the illustration model (default `gpt-image-1-mini`). All optional, set in `.env` alongside the rest.
+
+## Story pipeline
+
+`POST /api/story` runs on a [LangGraph](https://langchain-ai.github.io/langgraphjs/) graph, `graphs/storyGraph.js`, instead of one long procedural function:
+
+1. `moderateInput`, checks the prompt against the local moderation model.
+2. `checkRateLimit`, enforces the per-user story quota.
+3. `writeStory`, asks OpenAI for the scenes and character description, retrying once on its own if the reply isn't valid JSON.
+4. `generateSceneImage`, one graph node run in parallel per scene, each with its own retry, fanned out with LangGraph's `Send`.
+5. `finalizeStory`, gathers the saved image paths back into scene order.
+
+`server.js` calls `runStoryGraph(...)` once and maps the result's `status` to an HTTP response; it no longer talks to OpenAI directly for stories. Flashcard generation (`/api/card`) is still a plain sequence of function calls in `server.js`, it's simple enough that a graph wouldn't add anything.
+
+## Tests
+
+```bash
+npm test
+```
+
+Runs `graphs/storyGraph.test.js` (Node's built-in test runner) against the story graph with `fetch` mocked, no real OpenAI, ElevenLabs, or Ollama calls, and no API keys required. Covers moderation rejection, moderation-unavailable, a full run with scene images, the malformed-JSON retry (and giving up after two attempts), rate limiting, an upstream OpenAI error, and a client disconnecting mid-request.

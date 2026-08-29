@@ -1,54 +1,23 @@
 import { createServer } from 'node:http';
-import { readFile, writeFile, appendFile, mkdir, unlink } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import { LANGUAGES, DEFAULT_LANGUAGE, languageOf } from './languages.js';
 import { checkLimit, formatRetryAfter } from './rateLimiter.js';
 import { moderateText, warmUp as warmUpModeration } from './moderation.js';
+import {
+  PORT, ELEVENLABS_API_KEY as API_KEY, OPENAI_API_KEY as OPENAI_KEY,
+  SUPABASE_URL, SUPABASE_ANON_KEY, OPENAI_MODEL, OPENAI_IMAGE_MODEL, ROOT,
+} from './env.js';
+import { fetchWithTimeout, logServerError, openaiErrorMessage, ELEVENLABS_FRIENDLY_ERROR, OPENAI_FRIENDLY_ERROR } from './providerClient.js';
+import { newId, saveImageFile, deleteImageFile } from './imageStore.js';
+import { runStoryGraph } from './graphs/storyGraph.js';
+import { CARD_REJECTED_MESSAGE, MODERATION_UNAVAILABLE_MESSAGE } from './messages.js';
 
-const STORY_REJECTED_MESSAGE = "That story idea isn't something we can turn into a bedtime story. Try a different idea.";
-const CARD_REJECTED_MESSAGE  = "That word isn't something we can make a flashcard for. Try a different word.";
-const MODERATION_UNAVAILABLE_MESSAGE = "Couldn't check that right now. Try again in a moment.";
-
-const CARD_LIMIT  = { max: 15, windowMs: 60 * 60 * 1000 };
-const STORY_LIMIT = { max: 5,  windowMs: 24 * 60 * 60 * 1000 };
-
-function loadEnvFile(path) {
-  let content;
-  try { content = readFileSync(path, 'utf8'); } catch { return; }
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    let value = trimmed.slice(eq + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    if (!(key in process.env)) process.env[key] = value;
-  }
-}
-loadEnvFile(join(process.cwd(), '.env'));
+const CARD_LIMIT = { max: 15, windowMs: 60 * 60 * 1000 };
 
 if (!globalThis.WebSocket) globalThis.WebSocket = WebSocket;
-
-const PORT        = process.env.PORT || 8000;
-const API_KEY     = process.env.ELEVENLABS_API_KEY;
-const OPENAI_KEY  = process.env.OPENAI_API_KEY;
-const SUPABASE_URL      = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-
-const OPENAI_STORY_MODEL = process.env.OPENAI_STORY_MODEL || 'gpt-5';
-const OPENAI_MODEL       = process.env.OPENAI_MODEL || 'gpt-5-mini';
-const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini';
-const ROOT        = process.cwd();
-
-const DATA_DIR   = join(ROOT, 'data');
-const IMAGES_DIR = join(DATA_DIR, 'images');
-const STORY_IMAGES_DIR = join(DATA_DIR, 'story-images');
 
 const API_ROOT = 'https://api.elevenlabs.io';
 const MODEL_ID = 'eleven_v3';
@@ -107,41 +76,6 @@ function dbFor(token) {
 
 function dbError(res, error) {
   sendJson(res, 500, { error: error.message || 'Something went wrong saving that.' });
-}
-
-async function fetchWithTimeout(url, options = {}, ms = 20000, externalSignal) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-
-  const forwardAbort = () => controller.abort();
-  if (externalSignal) {
-    if (externalSignal.aborted) controller.abort();
-    else externalSignal.addEventListener('abort', forwardAbort, { once: true });
-  }
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      throw new Error("That's taking longer than it should. Please try again.");
-    }
-    throw new Error("Couldn't reach the server right now. Please try again.");
-  } finally {
-    clearTimeout(timer);
-    if (externalSignal) externalSignal.removeEventListener('abort', forwardAbort);
-  }
-}
-
-const ELEVENLABS_FRIENDLY_ERROR = "The voice isn't working right now. Try again in a bit.";
-const OPENAI_FRIENDLY_ERROR     = "Couldn't do that right now. Try again in a bit.";
-const ERROR_LOG_FILE = join(DATA_DIR, 'errors.log');
-
-async function logServerError(provider, detail, who) {
-  const line = `[${new Date().toISOString()}]${who ? ` [${who}]` : ''} ${provider}: ${detail}`;
-  console.error(line);
-  try {
-    await mkdir(DATA_DIR, { recursive: true });
-    await appendFile(ERROR_LOG_FILE, line + '\n');
-  } catch {  }
 }
 
 async function sendProviderError(res, status, provider, detail, who) {
@@ -220,60 +154,6 @@ async function handleTts(req, res) {
   res.end(audio);
 }
 
-const WORDS_PER_MINUTE = 130;
-
-function buildSystemPrompt(minutes, language = DEFAULT_LANGUAGE) {
-  const lang = languageOf(language);
-  const words = Math.round(minutes * WORDS_PER_MINUTE);
-  const connectives = ` Write the way a parent actually talks out
-  loud telling a bedtime story — natural, flowing sentences with real connective words
-  (${lang.connectives}), not a string of short clipped fragments. Varying sentence
-  length is fine; choppiness is not.`;
-  const typingNote = lang.typingNote ? `\n- ${lang.typingNote}` : '';
-  const cultureNote = `\n- Don't tie the story to ${lang.cultureNote} culture (names included) unless the request\n  asks for that — keep it global.`;
-  return `You write bedtime stories in ${lang.name} for a 3-year-old.
-
-The request may be written in English or in ${lang.name}. Either way, always write the story in ${lang.name}.
-
-Reply with ONLY a JSON object, nothing else, no markdown fences:
-{"characters": "...", "scenes": [{"text": "...", "image": "..."}, ...]}
-
-The story is broken into scenes so a picture can be shown for each one while it plays.
-Every scene is illustrated by a separate artist working alone, with no memory of the
-other scenes and no picture of the story's characters — "characters" and each scene's
-"image" line are the only things any of them ever sees, so those have to carry
-everything needed for the character to look like the same person or animal every time:
-- "characters": one line, in English, fixed for the whole story, describing every named
-  character's visual appearance for an illustrator — species or age and gender, hair or
-  fur colour and style, and clothing colour, e.g. "Sara: a small girl, short brown hair,
-  yellow t-shirt. Mom: a woman, brown hair in a bun, green apron." Nothing about
-  personality or plot, only what a repeated illustration needs to look consistent.
-- "scenes": 3 to 6 of them, at natural story-beat boundaries (a scene ends when the
-  setting, action, or moment changes) — never mid-sentence. Roughly equal in length.
-  - "text": that scene's narration, in ${lang.name}. No title, no transliteration, no
-    English, no markdown, no quotation marks. Concatenated in order, the scenes' "text"
-    fields are the whole story.
-  - "image": a short English description (10-20 words) of just that scene's setting and
-    action — concrete and visual (who's there, where, doing what). Refer to characters
-    only by the traits already given in "characters" (e.g. "the girl with brown hair"),
-    since the illustrator for this scene never sees their name or any other scene.
-
-Rules for the story itself:
-- About ${words} words total across all scenes — roughly ${minutes} minute${minutes > 1 ? 's' : ''} read aloud. This length matters; stay close to it.
-- Very simple ${lang.name} words a 3-year-old knows.${connectives}
-- One or two main characters, named, with a small, easy-to-follow problem or adventure for them — something they actually have to work at or figure out, not something that just happens to them.
-- Keep the story focused on one main idea. Every event should follow from a *reason* given earlier in the story — not from convenience. Don't introduce a new creature, object, or character partway through unless the story already gave a reason it would be there; a stray animal wandering in to make a sound is exactly the kind of random detail to avoid.
-- Playful sounds, actions, and dialogue to bring it to life, woven naturally into full sentences rather than standing alone as fragments.
-- Vivid but simple descriptions — concrete things a toddler has actually seen, not abstract ideas.
-- Warm and gentle throughout. Never scary, sad, violent, or sarcastic. A satisfying, happy ending.
-- Don't moralise, and don't let a lesson feel forced — if the story is teaching something, it should come through what happens, never through being told.${typingNote}
-- Get the spelling of every word right, especially ${lang.name} names for animals, foods,
-  and objects that aren't the everyday obvious ones — this gets read aloud by a
-  text-to-speech voice, which pronounces exactly what's written, so a misspelled or
-  invented word comes out mispronounced.${cultureNote}
-- The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them across the whole story, right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in ${lang.name}, and they belong in "text", never in "image". Don't overuse them — most sentences need none.`;
-}
-
 function buildUserPrompt({ prompt, focus }) {
   const parts = [];
   if (focus) {
@@ -325,90 +205,17 @@ async function handleStory(req, res, auth) {
   if (lookupErr) return dbError(res, lookupErr);
   if (existing) return sendJson(res, 200, existing);
 
-  try {
-    const moderation = await moderateText(userPrompt);
-    if (moderation.flagged) {
-      await logServerError('moderation', `Story prompt rejected (${moderation.reason}): ${userPrompt.slice(0, 200)}`, auth.user.email);
-      return sendJson(res, 400, { error: STORY_REJECTED_MESSAGE });
-    }
-  } catch (e) {
-    await logServerError('moderation', `Moderation check failed: ${e.message}`, auth.user.email);
-    return sendJson(res, 503, { error: MODERATION_UNAVAILABLE_MESSAGE });
-  }
-
-  const storyLimit = checkLimit('story', auth.user.id, STORY_LIMIT.max, STORY_LIMIT.windowMs);
-  if (!storyLimit.allowed) {
-    return sendJson(res, 429, { error: `That's today's stories used up. Try again in ${formatRetryAfter(storyLimit.retryAfterMs)}.` });
-  }
-
   const clientGone = new AbortController();
   req.on('close', () => clientGone.abort());
-  const bail = () => clientGone.signal.aborted;
 
-  const upstream = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: OPENAI_STORY_MODEL,
+  const result = await runStoryGraph({
+    userPrompt, minutes, language,
+    userId: auth.user.id, who: auth.user.email,
+    signal: clientGone.signal,
+  });
 
-      reasoning_effort: 'minimal',
-      messages: [
-        { role: 'system', content: buildSystemPrompt(minutes, language) },
-        { role: 'user',   content: userPrompt },
-      ],
-    }),
-  }, 30000, clientGone.signal);
-  if (bail()) return;
-
-  if (!upstream.ok) {
-    let detail = `OpenAI error ${upstream.status}.`;
-    try {
-      const body = await upstream.json();
-      detail = body?.error?.message || detail;
-    } catch {  }
-    return sendProviderError(res, upstream.status, 'openai', detail, auth.user.email);
-  }
-
-  const data = await upstream.json();
-  const raw  = data.choices?.[0]?.message?.content?.trim() || '';
-  const jsonText = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-
-  let scenes, characters;
-  try {
-    ({ scenes, characters } = JSON.parse(jsonText));
-  } catch {
-    scenes = null;
-  }
-  if (!Array.isArray(scenes) || scenes.length === 0 || !scenes.every(s => s?.text)) {
-    return sendProviderError(res, 502, 'openai', `Malformed scenes JSON: ${jsonText.slice(0, 500)}`, auth.user.email);
-  }
-
-  const images = await Promise.all(scenes.map(async (s, i) => {
-    if (!s.image) return null;
-    const fullPrompt = characters ? `${characters}. ${s.image}` : s.image;
-    let lastErr = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (bail()) return null;
-      try {
-        return await generateSceneImage(fullPrompt, clientGone.signal, auth.user.email);
-      } catch (e) {
-        lastErr = e;
-      }
-    }
-    if (!bail()) await logServerError('openai', `Scene ${i} image failed after 2 attempts: ${lastErr?.message || lastErr}`, auth.user.email);
-    return null;
-  }));
-  if (bail()) return;
-
-  const fileId = newId('story');
-  const savedScenes = await Promise.all(scenes.map(async (s, i) =>
-    images[i]
-      ? { text: s.text, image: await saveImageFile(auth.user.id, `${fileId}-${i}`, `data:image/png;base64,${images[i]}`, STORY_IMAGES_DIR) }
-      : { text: s.text, image: null }
-  ));
+  if (result.status === 'aborted') return;
+  if (result.status !== 'ok') return sendJson(res, result.httpStatus, { error: result.errorMessage });
 
   const { data: saved, error: insertErr } = await db.from('stories').insert({
     owner_id: auth.user.id,
@@ -416,12 +223,12 @@ async function handleStory(req, res, auth) {
     language,
     label: String(label).trim() || String(prompt).trim() || 'A story',
     minutes,
-    characters,
-    scenes: savedScenes,
+    characters: result.characters,
+    scenes: result.savedScenes,
   }).select('id').single();
   if (insertErr) return dbError(res, insertErr);
 
-  sendJson(res, 200, { id: saved.id, characters, scenes: savedScenes });
+  sendJson(res, 200, { id: saved.id, characters: result.characters, scenes: result.savedScenes });
 }
 
 function normalizeLanguage(code) {
@@ -530,47 +337,6 @@ async function generateCardImage(wordEn, who) {
   return b64;
 }
 
-async function generateSceneImage(sceneEn, signal, who) {
-  const prompt =
-    `${sceneEn}, flat vector illustration for a children's picture book, warm and ` +
-    `cheerful, simple bold shapes, soft shading, gentle pastel background, no text, ` +
-    `no watermark, no border, universal setting and clothing not tied to any one ` +
-    `country or culture`;
-
-  const upstream = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: OPENAI_IMAGE_MODEL,
-      prompt,
-      size: '1024x1024',
-      quality: 'low',
-      n: 1,
-    }),
-  }, 45000, signal);
-  if (!upstream.ok) {
-    await logServerError('openai', await openaiErrorMessage(upstream), who);
-    throw new Error(OPENAI_FRIENDLY_ERROR);
-  }
-
-  const data = await upstream.json();
-  const b64  = data.data?.[0]?.b64_json;
-  if (!b64) {
-    await logServerError('openai', 'Scene image generation returned no b64_json', who);
-    throw new Error(OPENAI_FRIENDLY_ERROR);
-  }
-  return b64;
-}
-
-async function openaiErrorMessage(upstream) {
-  try {
-    const body = await upstream.json();
-    return body?.error?.message || `OpenAI error ${upstream.status}.`;
-  } catch {
-    return `OpenAI error ${upstream.status}.`;
-  }
-}
-
 async function handleCard(req, res, auth) {
   if (!OPENAI_KEY) {
     return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set', auth.user.email);
@@ -611,26 +377,6 @@ async function handleCard(req, res, auth) {
   } catch (e) {
     sendJson(res, 502, { error: e.message });
   }
-}
-
-function newId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-async function saveImageFile(userId, id, dataUrl, dir = IMAGES_DIR) {
-  const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl || '');
-  if (!match) throw new Error('That image could not be saved.');
-  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-  const userDir = join(dir, userId);
-  await mkdir(userDir, { recursive: true });
-  const filename = `${id}.${ext}`;
-  await writeFile(join(userDir, filename), Buffer.from(match[2], 'base64'));
-  return `/data/${dir === STORY_IMAGES_DIR ? 'story-images' : 'images'}/${userId}/${filename}`;
-}
-
-async function deleteImageFile(publicPath) {
-  if (!publicPath || !/^\/data\/(images|story-images)\/[^/]+\/[^/]+$/.test(publicPath)) return;
-  try { await unlink(join(ROOT, publicPath)); } catch {  }
 }
 
 async function handleVocabularyGet(res, auth, language) {

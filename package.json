@@ -7,10 +7,14 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "dependencies": {
+    "@langchain/core": "^1.2.9",
+    "@langchain/langgraph": "^1.4.13",
     "@supabase/supabase-js": "^2.45.4",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "zod": "^3.25.76"
   }
 }
