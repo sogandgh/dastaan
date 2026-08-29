@@ -23,6 +23,7 @@ export function AddWordModal({ open, collectionId, collectionName, onClose, onSa
   const [word, setWord] = useState('');
   const [state, setState] = useState<AddWordState>({ status: 'idle' });
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export function AddWordModal({ open, collectionId, collectionName, onClose, onSa
       setWord('');
       setState({ status: 'idle' });
       setSaving(false);
+      setSaveError(null);
       inputRef.current?.focus();
     }
   }, [open]);
@@ -51,23 +53,32 @@ export function AddWordModal({ open, collectionId, collectionName, onClose, onSa
 
   function retry() {
     setState({ status: 'idle' });
+    setSaveError(null);
     inputRef.current?.focus();
   }
 
   async function confirm() {
     if (state.status !== 'preview' || !collectionId) return;
     setSaving(true);
-    const saved = await saveCard({ ...state.card, collectionId });
-    setSaving(false);
-    onSaved(saved);
+    setSaveError(null);
+    try {
+      const saved = await saveCard({ ...state.card, collectionId });
+      onSaved(saved);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Could not save the card.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   const isPreview = state.status === 'preview';
   const isGenerating = state.status === 'generating';
-  const statusMessage = state.status === 'error' ? state.message
+  const statusMessage = saveError ? saveError
+    : state.status === 'error' ? state.message
     : isGenerating ? 'Translating and drawing a picture…'
     : isPreview ? 'Good to add?'
     : '';
+  const statusIsError = Boolean(saveError) || state.status === 'error';
 
   return (
     <Modal open={open} onClose={onClose}>
@@ -99,7 +110,7 @@ export function AddWordModal({ open, collectionId, collectionName, onClose, onSa
         </div>
       )}
 
-      <p className={`note${state.status === 'error' ? ' error' : ''}`}>{statusMessage}</p>
+      <p className={`note${statusIsError ? ' error' : ''}`}>{statusMessage}</p>
 
       {!isPreview ? (
         <div className="sheet-actions">

@@ -49,4 +49,33 @@ describe('AddWordModal', () => {
     expect(await screen.findByText('Type a word first.')).toBeInTheDocument();
     expect(generateCard).not.toHaveBeenCalled();
   });
+
+  it('re-enables the save button and shows an error when saving fails, keeping the preview', async () => {
+    vi.mocked(generateCard).mockResolvedValue({ word_fa: 'سیب', word_en: 'apple', imageUrl: 'apple.png' });
+    vi.mocked(saveCard).mockRejectedValueOnce(new Error('Session expired.'));
+
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    render(
+      <AddWordModal open collectionId="coll1" collectionName="Fruits" onClose={vi.fn()} onSaved={onSaved} />,
+    );
+
+    await user.type(screen.getByLabelText('Word'), 'apple');
+    await user.click(screen.getByRole('button', { name: 'Create card' }));
+    expect(await screen.findByText('سیب')).toBeInTheDocument();
+
+    const saveBtn = screen.getByRole('button', { name: 'Add this card' });
+    await user.click(saveBtn);
+
+    expect(await screen.findByText('Session expired.')).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(saveBtn).not.toBeDisabled();
+    expect(screen.getByText('سیب')).toBeInTheDocument();
+
+    vi.mocked(saveCard).mockResolvedValueOnce({
+      id: '1', _key: '1', word_fa: 'سیب', word_en: 'apple', image: 'apple.png', imageUrl: 'apple.png', collectionId: 'coll1',
+    });
+    await user.click(saveBtn);
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
 });
