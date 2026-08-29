@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { GamePanel } from './GamePanel';
@@ -85,11 +85,11 @@ describe('GamePanel', () => {
     expect(narrator.lipSync.celebrate).toHaveBeenCalled();
     expect(tiles[0]).toHaveClass('is-correct');
 
-    vi.advanceTimersByTime(1700);
+    act(() => { vi.advanceTimersByTime(2000); });
     expect(pickRound).toHaveBeenCalledWith(items, 'الف');
   });
 
-  it('shakes and disables a wrong tile without ending the round', async () => {
+  it('shakes and disables a wrong tile without ending the round, saying the same deterministic line every time', async () => {
     const user = userEvent.setup();
     renderPanel();
     const tiles = screen.getAllByRole('button', { name: 'Pick this picture' });
@@ -99,6 +99,24 @@ describe('GamePanel', () => {
     expect(tiles[1]).toHaveClass('is-wrong');
     expect(tiles[1]).toBeDisabled();
     expect(tiles[0]).not.toBeDisabled();
+    expect(narrator.speakText).toHaveBeenLastCalledWith('یِکْ بَارِ دیگِهْ!', expect.any(Function));
+
+    await user.click(tiles[2]);
+    expect(narrator.speakText).toHaveBeenLastCalledWith('یِکْ بَارِ دیگِهْ!', expect.any(Function));
+  });
+
+  it('shows the celebration overlay only while celebrating', async () => {
+    vi.useFakeTimers();
+    const { container } = renderPanel();
+    const tiles = screen.getAllByRole('button', { name: 'Pick this picture' });
+
+    expect(container.querySelector('.celebration-overlay')).not.toBeInTheDocument();
+
+    await tiles[0].click();
+    expect(container.querySelector('.celebration-overlay')).toBeInTheDocument();
+
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(container.querySelector('.celebration-overlay')).not.toBeInTheDocument();
   });
 
   it('moves to a new round when Skip is clicked, without penalty', async () => {

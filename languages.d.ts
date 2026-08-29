@@ -11,7 +11,7 @@ export type Language = {
   diacriticsNote: string;
   cultureNote: string;
   celebrationLines: string[];
-  tryAgainLines: string[];
+  tryAgainLine: string;
 };
 
 export const LANGUAGES: Record<LanguageCode, Language>;

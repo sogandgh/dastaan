@@ -10,7 +10,7 @@ export const LANGUAGES = {
     diacriticsNote: "Include full vowel diacritics (اعراب): the short-vowel marks (فتحه، کسره، ضمه), sukun (ْ, as in دَرْد) on any consonant with no vowel, and shadda where a consonant doubles, the way an early-reader children's book does, so a child just learning to read can sound out every word.",
     cultureNote: 'Iran or Iranian',
     celebrationLines: ['آفَرینْ، آفَرینْ!', 'بَهْ بَهْ، عَالِی!', 'دُرُسْتْ کَرْدِی!', 'هُورَا هُورَا!', 'پِیدا کَرْدِی!', 'چِهْ قَشَنْگْ!'],
-    tryAgainLines: ['یِه بَارِ دِیگِه!', 'بَازَمْ مِی‌شِه!', 'نَزْدیکْ بُودْ!', 'بِیا دُوبَارِه!', 'بَازْ پِیداشْ کُنْ!', 'بَازْ مِی‌تُونِیمْ!'],
+    tryAgainLine: 'یِکْ بَارِ دیگِهْ!',
   },
   sv: {
     code: 'sv',
@@ -23,7 +23,7 @@ export const LANGUAGES = {
     diacriticsNote: '',
     cultureNote: 'Sweden or Swedish',
     celebrationLines: ['Hurra, rätt bild!', 'Du klarade det!', 'Så duktig du är!', 'Helt rätt!', 'Bra jobbat, kompis!', 'Toppen jobbat!'],
-    tryAgainLines: ['Nästan! Prova igen!', 'Inte den, kompis! Försök igen!', 'Hoppsan, vi testar igen!', 'Oj, inte den! Försök!', 'Inte riktigt, prova igen!', 'Vi letar vidare!'],
+    tryAgainLine: 'En gång till!',
   },
 };
 

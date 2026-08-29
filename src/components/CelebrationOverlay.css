@@ -1,0 +1,29 @@
+.celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+  pointer-events: none;
+  animation: celebrationWash 2s ease-in-out both;
+}
+
+@keyframes celebrationWash {
+  0%   { background: var(--coral);    opacity: 0; }
+  8%   { opacity: 0.4; }
+  25%  { background: var(--sand);     opacity: 0.4; }
+  45%  { background: var(--mint);     opacity: 0.4; }
+  65%  { background: var(--blue);     opacity: 0.4; }
+  85%  { background: var(--amber);    opacity: 0.4; }
+  100% { background: var(--amber);    opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .celebration-overlay {
+    animation: celebrationFade 2s ease-in-out both;
+  }
+  @keyframes celebrationFade {
+    0%   { background: var(--mint); opacity: 0; }
+    15%  { opacity: 0.35; }
+    85%  { opacity: 0.35; }
+    100% { background: var(--mint); opacity: 0; }
+  }
+}

@@ -157,19 +157,34 @@ otherwise unchanged.
   (`useVocabulary`, no new data source). The character says a word,
   four pictures appear, one right answer plus three distractors
   guaranteed to have visually distinct images (`pickRound` refuses to
-  deal a round it can't make fair). A wrong tap shakes once, dims out,
-  and stays disabled, the round keeps going with the remaining
-  options, never a hard fail or a score held against the child. A
-  right tap triggers Lily's `jumping`/`waving` CSS animations (both
-  written for the original vanilla app, ported over in the React
-  migration, never actually triggered by anything until now),
-  confetti (`Confetti.tsx`, no library, plain CSS particles), a
-  checkmark badge on the tile, and one of six varied spoken
-  celebration lines per language (`languages.js`'s new
-  `celebrationLines`/`tryAgainLines`, generated and verified against
-  the real OpenAI API the same way the diacritics fix was, re-checked
-  afterwards for the same wrong-sukun-codepoint bug that turned up in
-  the Talk tab work, clean this time). Skip always available, no
+  deal a round it can't make fair). Round selection is plain
+  `Math.random`, no AI involved, and `useVocabulary` refetches from
+  the server on every mount, so opening the Game tab always pulls
+  whatever flashcards exist at that moment, newly added ones included,
+  with no extra wiring needed. A wrong tap shakes once, dims out, and
+  stays disabled, the round keeps going with the remaining options,
+  never a hard fail or a score held against the child, and always
+  speaks the same deterministic line for that language
+  (`languages.js`'s `tryAgainLine`, one fixed string per language
+  rather than a random pick) so it only ever needs generating once;
+  the server's content-addressed audio cache (`audioCache.js`, keyed
+  on `sha256(voiceId + text)`) then serves that clip from disk forever
+  after the first real ElevenLabs call. A right tap triggers Lily's
+  `jumping`/`waving` CSS animations (both written for the original
+  vanilla app, ported over in the React migration, never actually
+  triggered by anything until now), confetti (`Confetti.tsx`, no
+  library, plain CSS particles), a full-screen color-wash overlay
+  (`CelebrationOverlay.tsx`, a smooth multi-stop fade through the
+  app's palette over two seconds, respects `prefers-reduced-motion`
+  with a simpler crossfade), a checkmark badge on the tile, and one of
+  six varied spoken celebration lines per language (`languages.js`'s
+  `celebrationLines`, generated and verified against the real OpenAI
+  API the same way the diacritics fix was, re-checked afterwards for
+  the same wrong-sukun-codepoint bug that turned up in the Talk tab
+  work, clean this time). Both `tryAgainLine` and `celebrationLines`
+  are read purely off `languageOf(language)`, so a new language just
+  needs those fields filled in, verified generic by testing against a
+  fake language not in the real registry. Skip always available, no
   penalty, just deals a new round.
 
 ## Testing

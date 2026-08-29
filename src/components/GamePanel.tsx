@@ -7,6 +7,7 @@ import { pickRandom } from '../lib/random';
 import { narrator } from '../lib/narrator';
 import { languageOf } from '../../languages.js';
 import { Confetti } from './Confetti';
+import { CelebrationOverlay } from './CelebrationOverlay';
 import type { DeckItem } from '../lib/builtinWords';
 import './GamePanel.css';
 
@@ -61,13 +62,12 @@ export function GamePanel() {
       setTimeout(() => {
         setCelebrating(false);
         startRound(round.target.word);
-      }, 1700);
+      }, 2000);
     } else {
       setWrongItems(prev => [...prev, item]);
       setShakeItem(item);
       setTimeout(() => setShakeItem(null), 420);
-      const line = lang.tryAgainLines.length ? pickRandom(lang.tryAgainLines) : '';
-      if (line) narrator.speakText(line, () => {});
+      if (lang.tryAgainLine) narrator.speakText(lang.tryAgainLine, () => {});
     }
   }
 
@@ -135,6 +135,7 @@ export function GamePanel() {
       </button>
 
       <Confetti trigger={confettiTrigger} />
+      <CelebrationOverlay show={celebrating} />
     </section>
   );
 }
