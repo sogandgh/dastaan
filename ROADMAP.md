@@ -60,7 +60,7 @@ item 1 above.
 - ✅ Multi-language support (Farsi + Swedish), one shared registry
   (`languages.js`) drives UI text/direction/font and the story/translation
   prompts, so adding a language is a data-only change in one file plus a
-  Swedish-equivalent word bank in `app.js`
+  Swedish-equivalent word bank in `src/lib/builtinWords.ts`
 - ✅ Per-user rate limiting (`rateLimiter.js`): 15 flashcards/hour, 5
   stories/day
 - 🟡 Content moderation (`moderation.js`): blocklist fast path +
@@ -80,6 +80,18 @@ item 1 above.
   runner, mocked `fetch`, no real API calls) covering moderation
   rejection, the moderation-unavailable path, malformed-JSON retry, rate
   limiting, upstream errors, and client disconnects.
+- 🟡 Client rewritten in React + TypeScript (`react-typescript-migration`
+  branch, not yet merged to `main` or deployed). Vite build, `strict`
+  TypeScript, Vitest + React Testing Library. Same backend, same
+  `/api/*` contract, no server-side behavior changes beyond how
+  `server.js` serves the client (Vite's `dist/` build plus an SPA
+  fallback, replacing the old raw-file static handler). Every screen
+  ported and covered by real tests: login/auth/routing, the app shell
+  (topbar, settings, the audio/lip-sync engine driving the Lily
+  mascot), flashcards and the add-word flow, story setup and playback.
+  Needs a review of the running app before merging and deploying, see
+  the plan file this migration worked from for the full module
+  breakdown.
 
 ## Testing
 
@@ -87,16 +99,12 @@ item 1 above.
 npm test
 ```
 
-Runs `graphs/storyGraph.test.js`. No API keys required, no real OpenAI or
-ElevenLabs calls, `fetch` is mocked. Extend this file (or add siblings
-next to it) as more of `server.js` gets pulled apart the same way the
-story pipeline was.
-
-## Separate track: React + TypeScript learning migration
-
-Not part of this roadmap's sequencing, doesn't block anything above. A
-personal learning project, ported screen by screen into a separate repo
-(`~/dastaan-react`), run via the `my-react-tutor` skill
-(`~/.claude/skills/my-react-tutor/`). Its own stateful progress file lives
-at `~/.claude/react-tutor/progress.md`. Source app (`/Users/sogandgh/bluey`,
-this repo) is read-only reference for it, never edited by that track.
+Runs both suites: `node --test` against `graphs/storyGraph.test.js`
+(the backend, no API keys required, no real OpenAI or ElevenLabs
+calls, `fetch` is mocked), then `vitest run` against the client's
+component and hook tests. `npm run test:server` / `npm run test:client`
+run them separately; `npm run typecheck` and `npm run lint` cover the
+rest of the client's checks. Extend `graphs/storyGraph.test.js` (or add
+siblings next to it) as more of `server.js` gets pulled apart the same
+way the story pipeline was; add client tests next to the component or
+hook they cover, same pattern as the rest of `src/`.

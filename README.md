@@ -8,11 +8,17 @@ A language learning app for kids built around an animated character. Currently s
 
 ## Screenshots
 
-![Learn screen](docs/screenshot-learn.png)![Story setup screen](docs/screenshot-story-setup.png)![Story playing screen](docs/screenshot-story-playing.png)\## Requirements
+![Learn screen](docs/screenshot-learn.png)![Story setup screen](docs/screenshot-story-setup.png)![Story playing screen](docs/screenshot-story-playing.png)
+
+## Stack
+
+The client is React 19 + TypeScript (`strict`), built with Vite, tested with Vitest + React Testing Library. The backend is a small dependency-light Node.js server (`server.js`, `node:http`) that also serves the client's production build; no framework there, LangGraph runs the story pipeline (see below). Supabase (Postgres + Auth) holds accounts and each family's data.
+
+## Requirements
 
 | Needed | Version | Why |
 | --- | --- | --- |
-| [Node.js](https://nodejs.org) | 18+ | Runs `server.js` |
+| [Node.js](https://nodejs.org) | 22+ | Runs `server.js`, builds the client. LangGraph's checkpoint code needs the global `crypto` API, which only Node 20+ exposes without a flag. |
 | [ElevenLabs API](https://elevenlabs.io/docs) key | n/a | Text-to-speech model. Needs `text_to_speech` and `voices_read` permissions. Model is `eleven_v3`. |
 | [OpenAI API](https://platform.openai.com/api-keys) key | n/a | writes the stories, and generates the illustration for each custom flashcard. |
 | [Supabase](https://supabase.com) project | n/a | Real accounts (sign in/sign up) and where each family's vocabulary/stories live. Free tier is enough. |
@@ -31,13 +37,25 @@ npm install
 cp .env.example .env
 ```
 
-Fill in `.env` with the four values above (`ELEVENLABS_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`). `.env` is gitignored and never committed; real environment variables (e.g. a systemd `EnvironmentFile`) take precedence over it, so the same setup works unchanged in production.
+Fill in `.env` with `ELEVENLABS_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and their client-side `VITE_` twins (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, same values, Vite only exposes `VITE_`-prefixed variables to browser code). `.env` is gitignored and never committed; real environment variables (e.g. a systemd `EnvironmentFile`) take precedence over it for the server-side ones, so the same setup works unchanged in production.
+
+**Local development**, client and server running side by side, the Vite dev server proxies `/api/*` to the Node backend:
 
 ```bash
+node server.js      # backend on :8000
+npm run dev          # frontend on :5173, proxying /api to :8000
+```
+
+Open **http://localhost:5173**.
+
+**Production**, one server, one origin: build the client first, `server.js` serves the build directly.
+
+```bash
+npm run build
 node server.js
 ```
 
-Open **http://localhost:8000**. It lands on the sign-in page first; create an account to get in. Voices load automatically from your ElevenLabs account; change which one it uses from the ⚙️ panel.
+Open **http://localhost:8000**. Either way, it lands on the sign-in page first; create an account to get in. Voices load automatically from your ElevenLabs account; change which one it uses from the ⚙️ panel.
 
 `PORT` overrides the port (default `8000`); `OPENAI_MODEL` overrides the story model (default `gpt-5-mini`); `OPENAI_IMAGE_MODEL` overrides the illustration model (default `gpt-image-1-mini`). All optional, set in `.env` alongside the rest.
 
@@ -59,4 +77,6 @@ Open **http://localhost:8000**. It lands on the sign-in page first; create an ac
 npm test
 ```
 
-Runs `graphs/storyGraph.test.js` (Node's built-in test runner) against the story graph with `fetch` mocked, no real OpenAI or ElevenLabs calls, and no API keys required. Covers moderation rejection, moderation-unavailable, a full run with scene images, the malformed-JSON retry (and giving up after two attempts), rate limiting, an upstream OpenAI error, and a client disconnecting mid-request.
+Runs both suites: `node --test` against `graphs/storyGraph.test.js` (the backend, `fetch` mocked, no real OpenAI or ElevenLabs calls, no API keys required), then `vitest run` against the client's component and hook tests. Run them separately with `npm run test:server` or `npm run test:client`; `npm run typecheck` and `npm run lint` cover the rest of the client's checks.
+
+The backend suite covers moderation rejection, moderation-unavailable, a full run with scene images, the malformed-JSON retry (and giving up after two attempts), rate limiting, an upstream OpenAI error, and a client disconnecting mid-request. The client suite covers the login/auth flow, the app shell (topbar, modal, settings), flashcards and the add-word flow, and story setup/playback including the pause/resume and repeat states.
