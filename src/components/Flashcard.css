@@ -135,33 +135,12 @@
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
 }
-.dots { display: flex; gap: 6px; }
-.dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--line);
-  transition: width 260ms var(--ease), border-radius 260ms var(--ease), background-color 260ms var(--ease);
-}
-.dot.active { width: 20px; border-radius: 3px; background: var(--blue-deep); }
 
 .deck-nav {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.nav-btn {
-  display: grid;
-  place-items: center;
-  width: 50px; height: 50px;
-  border-radius: 50%;
-  color: var(--ink);
-  background: var(--paper);
-  box-shadow: var(--shadow-md);
-  transition: transform 200ms var(--ease);
-}
-.nav-btn svg { width: 20px; height: 20px; }
-.nav-btn:hover  { transform: scale(1.08); }
-.nav-btn:active { transform: scale(0.94); }
 
 .say-btn {
   padding: 14px 34px;

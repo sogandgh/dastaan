@@ -2,8 +2,16 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  width: min(420px, 100%);
+  width: min(520px, 100%);
 }
+
+.story-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+.story-row .nav-btn { flex-shrink: 0; }
 
 .playing-meta {
   display: flex;
@@ -39,7 +47,8 @@
 .levels span:nth-child(5) { height: calc(4px + var(--level, 0) * 16px); }
 
 .story-panel {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   max-height: min(64vh, 480px);
   overflow-y: auto;
   padding: 18px;
@@ -75,6 +84,8 @@
 }
 body.preparing .preparing-note { display: block; }
 body.preparing .levels,
+body.preparing .story-row .nav-btn,
+body.preparing .panel-play > .dots,
 body.preparing .stop-btn { display: none; }
 .preparing-note::after {
   content: '';

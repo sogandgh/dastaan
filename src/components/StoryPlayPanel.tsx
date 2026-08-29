@@ -23,8 +23,10 @@ function expandLongScenes(scenes: Scene[]): Scene[] {
   return out;
 }
 
-export function StoryPlayPanel({ scenes, label, onLeaveToSetup }: StoryPlayPanelProps) {
+export function StoryPlayPanel({ scenes: rawScenes, label, onLeaveToSetup }: StoryPlayPanelProps) {
   const { showToast } = useToast();
+  const [scenes] = useState(() => expandLongScenes(rawScenes));
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [text, setText] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
@@ -32,11 +34,12 @@ export function StoryPlayPanel({ scenes, label, onLeaveToSetup }: StoryPlayPanel
   const [repeatMode, setRepeatMode] = useState(false);
   const activeRef = useRef(true);
   const levelsRef = useRef<HTMLDivElement>(null);
+  const targetIndexRef = useRef(0);
 
   useEffect(() => {
     activeRef.current = true;
     narrator.lipSync.levelsEl = levelsRef.current;
-    play(scenes);
+    playFrom(0);
     return () => {
       activeRef.current = false;
       narrator.lipSync.levelsEl = null;
@@ -44,7 +47,8 @@ export function StoryPlayPanel({ scenes, label, onLeaveToSetup }: StoryPlayPanel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function onSceneChange(scene: Scene) {
+  function onSceneChange(scene: Scene, index: number) {
+    setCurrentIndex(index);
     setText(stripDeliveryTags(scene.text));
     if (!scene.image) {
       setImage(null);
@@ -58,25 +62,35 @@ export function StoryPlayPanel({ scenes, label, onLeaveToSetup }: StoryPlayPanel
     }, 200);
   }
 
-  async function play(rawScenes: Scene[]) {
+  async function playFrom(index: number) {
+    targetIndexRef.current = index;
     setRepeatMode(false);
-    setIsPaused(false);
     document.body.classList.add('preparing');
-    const expanded = expandLongScenes(rawScenes);
-    const outcome = await narrator.speakStory(
-      expanded,
+    const { outcome } = await narrator.playStoryScene(
+      scenes,
+      index,
       onSceneChange,
       () => showToast('Pick a narrator voice in Settings first.'),
     );
     document.body.classList.remove('preparing');
-    if (!activeRef.current) return;
-    if (outcome === 'finished') setRepeatMode(true);
-    else if (outcome !== 'stopped') onLeaveToSetup();
+    if (!activeRef.current || outcome === 'stopped') return;
+
+    if (outcome !== 'ended') {
+      onLeaveToSetup();
+      return;
+    }
+    if (index + 1 < scenes.length) playFrom(index + 1);
+    else setRepeatMode(true);
+  }
+
+  function goToScene(direction: 1 | -1) {
+    const next = (targetIndexRef.current + direction + scenes.length) % scenes.length;
+    playFrom(next);
   }
 
   function handlePauseClick() {
     if (repeatMode) {
-      play(scenes);
+      playFrom(0);
       return;
     }
     setIsPaused(narrator.togglePause());
@@ -92,10 +106,28 @@ export function StoryPlayPanel({ scenes, label, onLeaveToSetup }: StoryPlayPanel
         <p className="preparing-note">Getting the story ready</p>
       </div>
 
-      <div className="story-panel">
-        {image && <img className={`story-scene${changing ? ' is-changing' : ''}`} src={image} alt="" />}
-        <p dir="rtl" lang="fa">{text}</p>
+      <div className="story-row">
+        <button type="button" className="nav-btn" onClick={() => goToScene(-1)} aria-label="Previous scene">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
+        </button>
+
+        <div className="story-panel">
+          {image && <img className={`story-scene${changing ? ' is-changing' : ''}`} src={image} alt="" />}
+          <p dir="rtl" lang="fa">{text}</p>
+        </div>
+
+        <button type="button" className="nav-btn" onClick={() => goToScene(1)} aria-label="Next scene">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
       </div>
+
+      {scenes.length > 1 && (
+        <div className="dots">
+          {scenes.map((_, i) => (
+            <div key={i} className={`dot${i === currentIndex ? ' active' : ''}`} />
+          ))}
+        </div>
+      )}
 
       <button type="button" className="stop-btn" onClick={handlePauseClick}>
         {repeatMode ? (

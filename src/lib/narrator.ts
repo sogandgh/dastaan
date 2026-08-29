@@ -1,9 +1,10 @@
-import { synthesize } from './speech';
+import { synthesize, prefetch } from './speech';
 import { getVoice } from './preferences';
 
 type PlaybackOutcome = 'ended' | 'blocked' | 'stalled' | 'error' | 'stopped';
-export type StoryOutcome = PlaybackOutcome | 'finished' | 'no-voice';
+export type StoryOutcome = PlaybackOutcome | 'no-voice';
 export type Scene = { text: string; image: string | null };
+export type ScenePlayback = { outcome: StoryOutcome; index: number };
 
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
 
@@ -259,47 +260,39 @@ class Narrator {
     return this.isPaused;
   }
 
-  async speakStory(scenes: Scene[], onScene: (scene: Scene) => void, onNoVoice: () => void): Promise<StoryOutcome> {
+  private readonly LOOKAHEAD = 2;
+
+  async playStoryScene(
+    scenes: Scene[],
+    index: number,
+    onScene: (scene: Scene, index: number) => void,
+    onNoVoice: () => void,
+  ): Promise<ScenePlayback> {
     const token = this.beginSpeaking();
     this.isPaused = false;
     const voiceId = await this.resolveVoice();
-    if (!voiceId) { onNoVoice(); return 'no-voice'; }
+    if (!voiceId) { onNoVoice(); return { outcome: 'no-voice', index }; }
+    if (token !== this.speakToken) return { outcome: 'stopped', index };
 
-    const LOOKAHEAD = 2;
-    const pending: Array<Promise<string> | null> = new Array(scenes.length).fill(null);
-    const start = (i: number) => {
-      if (i < scenes.length && !pending[i]) pending[i] = synthesize(scenes[i].text, voiceId);
-    };
-    for (let i = 0; i <= LOOKAHEAD; i++) start(i);
+    for (let i = index + 1; i <= index + this.LOOKAHEAD && i < scenes.length; i++) {
+      prefetch(scenes[i].text, voiceId);
+    }
 
+    let url: string;
     try {
-      const first = await pending[0];
-      if (token !== this.speakToken) return 'stopped';
-
-      if (scenes.length > 1) {
-        await Promise.race([pending[1], new Promise(r => setTimeout(r, 2000))]);
-        if (token !== this.speakToken) return 'stopped';
-      }
-
-      for (let i = 0; i < scenes.length; i++) {
-        const url = i === 0 ? first! : await pending[i]!;
-        if (token !== this.speakToken) return 'stopped';
-        start(i + LOOKAHEAD);
-
-        onScene(scenes[i]);
-        const outcome = await this.playClip(url, token);
-        if (token !== this.speakToken) return 'stopped';
-        if (outcome !== 'ended') {
-          this.emitError(this.describePlaybackError(outcome));
-          return outcome;
-        }
-      }
+      url = await synthesize(scenes[index].text, voiceId);
     } catch (e) {
       if (token === this.speakToken) this.emitError(e instanceof Error ? e.message : 'Something went wrong.');
       logEvent('speak-story-error', { message: e instanceof Error ? e.message : String(e) });
-      return 'error';
+      return { outcome: 'error', index };
     }
-    return 'finished';
+    if (token !== this.speakToken) return { outcome: 'stopped', index };
+
+    onScene(scenes[index], index);
+    const outcome = await this.playClip(url, token);
+    if (token !== this.speakToken) return { outcome: 'stopped', index };
+    if (outcome !== 'ended') this.emitError(this.describePlaybackError(outcome));
+    return { outcome, index };
   }
 }
 
