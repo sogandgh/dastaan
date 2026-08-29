@@ -30,6 +30,7 @@ export const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-mini';
 export const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1-mini';
 
 export const ROOT = process.cwd();
+export const DIST_DIR = join(ROOT, 'dist');
 export const DATA_DIR = join(ROOT, 'data');
 export const IMAGES_DIR = join(DATA_DIR, 'images');
 export const STORY_IMAGES_DIR = join(DATA_DIR, 'story-images');

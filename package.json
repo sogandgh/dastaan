@@ -4,17 +4,41 @@
   "type": "module",
   "description": "Persian flashcards and Farsi bedtime stories, narrated by an animated character via ElevenLabs.",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "oxlint",
+    "test:server": "node --test 'graphs/**/*.test.js'",
+    "test:client": "vitest run",
+    "test": "npm run test:server && npm run test:client"
   },
   "dependencies": {
     "@langchain/core": "^1.2.9",
     "@langchain/langgraph": "^1.4.13",
     "@supabase/supabase-js": "^2.45.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3",
     "ws": "^8.21.3",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "jsdom": "^27.0.1",
+    "oxlint": "^1.79.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   }
 }

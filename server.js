@@ -8,7 +8,7 @@ import { checkLimit, formatRetryAfter } from './rateLimiter.js';
 import { moderateText, warmUp as warmUpModeration } from './moderation.js';
 import {
   PORT, ELEVENLABS_API_KEY as API_KEY, OPENAI_API_KEY as OPENAI_KEY,
-  SUPABASE_URL, SUPABASE_ANON_KEY, OPENAI_MODEL, OPENAI_IMAGE_MODEL, ROOT,
+  SUPABASE_URL, SUPABASE_ANON_KEY, OPENAI_MODEL, OPENAI_IMAGE_MODEL, DIST_DIR,
 } from './env.js';
 import { fetchWithTimeout, logServerError, openaiErrorMessage, ELEVENLABS_FRIENDLY_ERROR, OPENAI_FRIENDLY_ERROR } from './providerClient.js';
 import { newId, saveImageFile, deleteImageFile } from './imageStore.js';
@@ -474,30 +474,31 @@ async function handleDeleteCard(id, res, auth) {
 async function handleStatic(req, res, pathname) {
 
   const rel  = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
-  const file = join(ROOT, rel === '/' ? 'index.html' : rel);
+  const file = join(DIST_DIR, rel === '/' ? 'index.html' : rel);
 
-  if (!file.startsWith(ROOT)) {
+  if (!file.startsWith(DIST_DIR)) {
     res.writeHead(403).end('Forbidden');
     return;
   }
 
   try {
-
-    if (rel === '/auth.js') {
-      const body = (await readFile(file, 'utf8'))
-        .replace('SUPABASE_URL_PLACEHOLDER', SUPABASE_URL || '')
-        .replace('SUPABASE_ANON_KEY_PLACEHOLDER', SUPABASE_ANON_KEY || '');
-      res.writeHead(200, { 'Content-Type': MIME['.js'] });
-      res.end(body);
-      return;
-    }
-
     const body = await readFile(file);
     res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
     res.end(body);
   } catch {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Not found');
+    if (extname(rel)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
+    }
+    try {
+      const body = await readFile(join(DIST_DIR, 'index.html'));
+      res.writeHead(200, { 'Content-Type': MIME['.html'] });
+      res.end(body);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+    }
   }
 }
 
