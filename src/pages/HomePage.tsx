@@ -1,10 +1,9 @@
-import { signOut } from '../lib/supabase';
+import { AppShell } from '../components/AppShell';
 
 export function HomePage() {
   return (
-    <div>
-      <p>Signed in.</p>
-      <button type="button" onClick={() => signOut()}>Sign out</button>
-    </div>
+    <AppShell>
+      <p>Flashcards and stories land in the next modules of this migration.</p>
+    </AppShell>
   );
 }

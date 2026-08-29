@@ -43,6 +43,8 @@ body {
   font-family: 'Baloo 2', system-ui, sans-serif;
   color: var(--ink);
   background: var(--sky-lo);
+  overflow: hidden;
+  user-select: none;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -54,6 +56,14 @@ button, [role="button"] { touch-action: manipulation; }
   outline: 3px solid var(--blue-deep);
   outline-offset: 3px;
   border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .sr-only {
