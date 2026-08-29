@@ -267,7 +267,7 @@ markdown fences:
 {"fa": "...", "en": "..."}
 
 - "fa": the word in ${lang.name}, correct and natural, one word or a short
-  phrase a toddler would use.${lang.typingNote ? ' ' + lang.typingNote : ''}
+  phrase a toddler would use.${lang.typingNote ? ' ' + lang.typingNote : ''}${lang.diacriticsNote ? ' ' + lang.diacriticsNote : ''}
 - "en": a short, simple, literal English translation (one or two words) — used only to
   generate a picture, so keep it concrete and unambiguous (e.g. "apple", not "a healthy
   red fruit").

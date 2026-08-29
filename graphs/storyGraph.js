@@ -20,6 +20,7 @@ function buildSystemPrompt(minutes, language) {
   (${lang.connectives}), not a string of short clipped fragments. Varying sentence
   length is fine; choppiness is not.`;
   const typingNote = lang.typingNote ? `\n- ${lang.typingNote}` : '';
+  const diacriticsNote = lang.diacriticsNote ? `\n- ${lang.diacriticsNote}` : '';
   const cultureNote = `\n- Don't tie the story to ${lang.cultureNote} culture (names included) unless the request\n  asks for that — keep it global.`;
   return `You write bedtime stories in ${lang.name} for a 3-year-old.
 
@@ -60,7 +61,7 @@ Rules for the story itself:
 - Get the spelling of every word right, especially ${lang.name} names for animals, foods,
   and objects that aren't the everyday obvious ones — this gets read aloud by a
   text-to-speech voice, which pronounces exactly what's written, so a misspelled or
-  invented word comes out mispronounced.${cultureNote}
+  invented word comes out mispronounced.${cultureNote}${diacriticsNote}
 - The voice reading this aloud understands audio delivery tags in square brackets — [giggles], [laughs], [whispers], [excited], [curious], [mischievously], [sighs]. Place 3-6 of them across the whole story, right before the word or line they should colour, wherever a moment actually calls for it (a giggle after something silly, a whisper for a secret, excitement at a happy surprise). Always in English, in brackets, even though the story itself is in ${lang.name}, and they belong in "text", never in "image". Don't overuse them — most sentences need none.`;
 }
 
