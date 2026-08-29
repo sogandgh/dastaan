@@ -34,3 +34,4 @@ export const DIST_DIR = join(ROOT, 'dist');
 export const DATA_DIR = join(ROOT, 'data');
 export const IMAGES_DIR = join(DATA_DIR, 'images');
 export const STORY_IMAGES_DIR = join(DATA_DIR, 'story-images');
+export const AUDIO_CACHE_DIR = join(DATA_DIR, 'audio-cache');

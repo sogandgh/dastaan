@@ -36,10 +36,12 @@ Ordered by actual impact, not by how easy each one is.
 5. ⬜ **CI.** `npm test` exists and passes locally now (see Testing
    below) but nothing runs it automatically on push. Even a bare-bones
    GitHub Actions workflow running `npm test` closes most of the gap.
-6. ⬜ **Move generated images off local disk** (Supabase Storage or a
-   cheap object store like R2). Right now: no CDN, no redundancy, grows
-   until the disk fills, single point of failure if the droplet dies.
-   The single biggest scaling risk in the current design.
+6. ⬜ **Move generated images and cached audio off local disk**
+   (Supabase Storage or a cheap object store like R2). Right now: no
+   CDN, no redundancy, grows until the disk fills, single point of
+   failure if the droplet dies. The single biggest scaling risk in the
+   current design. The audio cache (see Features shipped) grows more
+   slowly than images, small mp3 clips, but it's the same risk.
 7. ⬜ **Error alerting.** Server errors are logged to
    `data/errors.log`, tagged with the reporting user's email (grep-able
    when someone reports a problem), but nothing notifies anyone when the
@@ -99,6 +101,18 @@ HTTPS yet, so sign-in currently goes over plain HTTP, see item 1 above.
   verified instead by a real test suite plus a clean build/console at
   every step. Worth an actual pass through the live app soon to catch
   anything that only shows up with a real signed-in session.
+- ✅ Server-side audio cache (`audioCache.js`): `/api/tts` used to be a
+  pure passthrough to ElevenLabs, so the same story replayed on a
+  second device, or after clearing browser storage, cost a fresh
+  ElevenLabs call every time, the client's IndexedDB cache was the
+  only cache and it's per-browser. Now caches by a hash of
+  `voiceId + text` under `data/audio-cache/`, shared globally rather
+  than per-user (the same word in the same voice is the same audio no
+  matter who asks), so any given line only ever costs ElevenLabs once,
+  ever. Verified against the real ElevenLabs API: first request ~1.4s
+  and a real API call, an identical second request ~1ms served
+  straight from disk, bytes identical, confirmed only one real
+  ElevenLabs call happened for both.
 
 ## Testing
 

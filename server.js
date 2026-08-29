@@ -12,6 +12,7 @@ import {
 } from './env.js';
 import { fetchWithTimeout, logServerError, openaiErrorMessage, ELEVENLABS_FRIENDLY_ERROR, OPENAI_FRIENDLY_ERROR } from './providerClient.js';
 import { newId, saveImageFile, deleteImageFile } from './imageStore.js';
+import { getCachedClip, saveCachedClip } from './audioCache.js';
 import { runStoryGraph } from './graphs/storyGraph.js';
 import { CARD_REJECTED_MESSAGE, MODERATION_UNAVAILABLE_MESSAGE } from './messages.js';
 
@@ -138,6 +139,13 @@ async function handleTts(req, res) {
   if (!text)    return sendJson(res, 400, { error: 'Nothing to say.' });
   if (!voiceId) return sendJson(res, 400, { error: 'No voice selected.' });
 
+  const cached = await getCachedClip(voiceId, text);
+  if (cached) {
+    res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': cached.length });
+    res.end(cached);
+    return;
+  }
+
   const upstream = await fetchWithTimeout(
     `${API_ROOT}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${OUT_FMT}`,
     {
@@ -150,6 +158,7 @@ async function handleTts(req, res) {
   if (!upstream.ok) return sendProviderError(res, upstream.status, 'elevenlabs', await upstreamError(upstream), auth.user.email);
 
   const audio = Buffer.from(await upstream.arrayBuffer());
+  await saveCachedClip(voiceId, text, audio);
   res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': audio.length });
   res.end(audio);
 }
