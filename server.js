@@ -13,6 +13,7 @@ import {
 import { fetchWithTimeout, logServerError, openaiErrorMessage, ELEVENLABS_FRIENDLY_ERROR, OPENAI_FRIENDLY_ERROR } from './providerClient.js';
 import { newId, saveImageFile, deleteImageFile } from './imageStore.js';
 import { getCachedClip, saveCachedClip } from './audioCache.js';
+import { transcribeAudio, generateLilyReply } from './lilyChat.js';
 import { runStoryGraph } from './graphs/storyGraph.js';
 import { CARD_REJECTED_MESSAGE, MODERATION_UNAVAILABLE_MESSAGE } from './messages.js';
 
@@ -388,6 +389,62 @@ async function handleCard(req, res, auth) {
   }
 }
 
+const TALK_LIMIT = { max: 20, windowMs: 60 * 60 * 1000 };
+
+function parseDataUrl(dataUrl) {
+  const match = /^data:([^,]*);base64,([\s\S]+)$/.exec(dataUrl || '');
+  if (!match) return null;
+  const mimeType = match[1].split(';')[0] || 'audio/webm';
+  return { mimeType, buffer: Buffer.from(match[2], 'base64') };
+}
+
+async function handleTalk(req, res, auth) {
+  if (!API_KEY)    return sendProviderError(res, 500, 'elevenlabs', 'ELEVENLABS_API_KEY is not set', auth.user.email);
+  if (!OPENAI_KEY) return sendProviderError(res, 500, 'openai', 'OPENAI_API_KEY is not set', auth.user.email);
+
+  let audio, language = DEFAULT_LANGUAGE;
+  try {
+    ({ audio, language = DEFAULT_LANGUAGE } = await readJsonBody(req));
+  } catch {
+    return sendJson(res, 400, { error: 'Malformed request body.' });
+  }
+  language = normalizeLanguage(language);
+
+  const parsed = parseDataUrl(audio);
+  if (!parsed) return sendJson(res, 400, { error: 'No recording received.' });
+
+  const talkLimit = checkLimit('talk', auth.user.id, TALK_LIMIT.max, TALK_LIMIT.windowMs);
+  if (!talkLimit.allowed) {
+    return sendJson(res, 429, { error: `That's this hour's talking used up. Try again in ${formatRetryAfter(talkLimit.retryAfterMs)}.` });
+  }
+
+  try {
+    const transcript = await transcribeAudio(parsed.buffer, parsed.mimeType, auth.user.email);
+
+    if (transcript.trim().length < 2) {
+      const reply = await generateLilyReply(language, 'unclear', null, auth.user.email);
+      return sendJson(res, 200, { transcript: '', reply });
+    }
+
+    try {
+      const moderation = await moderateText(transcript);
+      if (moderation.flagged) {
+        await logServerError('moderation', `Talk message deflected (${moderation.reason}): ${transcript}`, auth.user.email);
+        const reply = await generateLilyReply(language, 'deflect', null, auth.user.email);
+        return sendJson(res, 200, { transcript, reply });
+      }
+    } catch (e) {
+      await logServerError('moderation', `Moderation check failed: ${e.message}`, auth.user.email);
+      return sendJson(res, 503, { error: MODERATION_UNAVAILABLE_MESSAGE });
+    }
+
+    const reply = await generateLilyReply(language, 'reply', transcript, auth.user.email);
+    sendJson(res, 200, { transcript, reply });
+  } catch (e) {
+    sendJson(res, 502, { error: e.message });
+  }
+}
+
 async function handleVocabularyGet(res, auth, language) {
   const lang = normalizeLanguage(language);
   const db = dbFor(auth.token);
@@ -545,6 +602,10 @@ createServer(async (req, res) => {
     if (pathname === '/api/card' && req.method === 'POST') {
       const auth = await requireAuth(req, res); if (!auth) return;
       return await handleCard(req, res, auth);
+    }
+    if (pathname === '/api/talk' && req.method === 'POST') {
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return await handleTalk(req, res, auth);
     }
     if (pathname === '/api/vocabulary' && req.method === 'GET') {
       const auth = await requireAuth(req, res); if (!auth) return;

@@ -113,6 +113,32 @@ HTTPS yet, so sign-in currently goes over plain HTTP, see item 1 above.
   and a real API call, an identical second request ~1ms served
   straight from disk, bytes identical, confirmed only one real
   ElevenLabs call happened for both.
+- ✅ Full vowel diacritics (اعراب) in generated Farsi (`languages.js`'s
+  `diacriticsNote`, wired into the story and card-translate prompts):
+  Persian script normally omits short vowels, fine for a fluent reader,
+  not much help for a kid sounding words out. Empty for Swedish, that
+  script already writes every vowel. Verified with real OpenAI calls,
+  not just by reading the prompt, both single flashcard words and a
+  full multi-scene story came back consistently vowel-marked.
+- ✅ Talk tab (`lilyChat.js`, `POST /api/talk`, `TalkPanel.tsx`): tap a
+  mic, say something, get a short warm spoken reply, using ElevenLabs
+  Scribe (`scribe_v2`) for speech-to-text since it's already the same
+  vendor as narration and its docs confirm both Farsi and Swedish are
+  covered. Deliberately not a pronunciation test, general ASR is
+  measurably worse on child speech than adult speech (studies put
+  Whisper around 25% word-error-rate on kids' voices vs ~3% on adult),
+  so grading against a target word would routinely mark normal
+  toddler mispronunciation as wrong. It only ever detects that the
+  child said *something*; an unclear or empty transcript gets a warm
+  "say that again?" instead of an error. Every transcript over 2
+  characters goes through the same `moderateText()` gate stories and
+  cards use before any reply gets generated; flagged input never
+  reaches the reply model, the character just changes the subject.
+  The reply prompt is parameterized purely by `languageOf(language)`,
+  same pattern as the story/card prompts, verified generic (not
+  secretly fa/sv-specific) by running it against a fake third
+  language that isn't in the app at all. Recorded audio is forwarded
+  to ElevenLabs and discarded, never written to disk.
 
 ## Testing
 

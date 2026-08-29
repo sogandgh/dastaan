@@ -7,7 +7,7 @@ export const LANGUAGES = {
     font: "'Vazirmatn', sans-serif",
     connectives: 'و، چون، بعد، تا این‌که',
     typingNote: 'Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).',
-    diacriticsNote: "Include full vowel diacritics (اعراب): the short-vowel marks (فتحه، کسره، ضمه), sukun on any consonant with no vowel, and shadda where a consonant doubles, the way an early-reader children's book does, so a child just learning to read can sound out every word.",
+    diacriticsNote: "Include full vowel diacritics (اعراب): the short-vowel marks (فتحه، کسره، ضمه), sukun (ْ, as in دَرْد) on any consonant with no vowel, and shadda where a consonant doubles, the way an early-reader children's book does, so a child just learning to read can sound out every word.",
     cultureNote: 'Iran or Iranian',
   },
   sv: {

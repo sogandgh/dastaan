@@ -1,0 +1,73 @@
+.panel-talk {
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: min(420px, 100%);
+  text-align: center;
+}
+
+.talk-head h1 {
+  font-size: clamp(1.3rem, 3.4vw, 1.65rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.talk-head p {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.mic-btn {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--coral);
+  box-shadow: var(--shadow-lg);
+  transition: transform 200ms var(--ease), background-color 200ms;
+}
+.mic-btn svg { width: 34px; height: 34px; }
+.mic-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.mic-btn:active:not(:disabled) { transform: scale(0.97); }
+.mic-btn:disabled { opacity: 0.6; cursor: default; }
+
+.mic-btn.is-recording {
+  background: var(--amber);
+  animation: micPulse 1.4s ease-in-out infinite;
+}
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 45%, transparent); }
+  50%      { box-shadow: 0 0 0 16px color-mix(in srgb, var(--amber) 0%, transparent); }
+}
+
+.talk-status {
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--amber);
+}
+
+.talk-exchange {
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: var(--r-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-lg);
+  animation: panelIn 320ms var(--ease) both;
+}
+.talk-said {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.talk-reply {
+  margin-top: 8px;
+  font-family: var(--lang-font);
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--ink);
+}
