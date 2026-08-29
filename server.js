@@ -115,11 +115,13 @@ async function handleVoices(req, res) {
 
   const data = await upstream.json();
   sendJson(res, 200, {
-    voices: (data.voices || []).map(v => ({
-      voice_id: v.voice_id,
-      name:     v.name,
-      labels:   v.labels || {},
-    })),
+    voices: (data.voices || [])
+      .filter(v => v.labels?.gender === 'female' && v.labels?.age === 'young')
+      .map(v => ({
+        voice_id: v.voice_id,
+        name:     v.name,
+        labels:   v.labels || {},
+      })),
   });
 }
 

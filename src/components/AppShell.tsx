@@ -10,7 +10,7 @@ import { StoryFlow } from './StoryFlow';
 import { TalkPanel } from './TalkPanel';
 import { languageOf } from '../../languages.js';
 import { narrator } from '../lib/narrator';
-import { listVoices } from '../lib/voices';
+import { listVoices, ensureAllowedVoice } from '../lib/voices';
 import './AppShell.css';
 
 const GREETINGS = ['سلام', 'خوبی؟', 'خداحافظ'];
@@ -24,7 +24,11 @@ function AppShellChrome() {
 
   useEffect(() => {
     narrator.onError(showToast);
-    narrator.setVoicesReady(listVoices().catch(() => []));
+    narrator.setVoicesReady(
+      listVoices()
+        .then(list => { ensureAllowedVoice(list); return list; })
+        .catch(() => []),
+    );
     document.addEventListener('pointerdown', narrator.unlockAudioForSession, { capture: true });
     return () => document.removeEventListener('pointerdown', narrator.unlockAudioForSession, { capture: true });
   }, [showToast]);

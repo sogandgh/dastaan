@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal } from './Modal';
 import { LANGUAGES } from '../../languages.js';
-import { listVoices, type Voice } from '../lib/voices';
+import { listVoices, ensureAllowedVoice, type Voice } from '../lib/voices';
 import { getVoice, setVoice } from '../lib/preferences';
 import { signOut } from '../lib/supabase';
 
@@ -28,12 +28,7 @@ export function SettingsModal({ open, onClose, language, onLanguageChange }: Set
       .then(list => {
         if (!active) return;
         setVoices(list);
-        const saved = getVoice();
-        if (!saved && list.length) {
-          const preferred = list.find(v => v.name.split(' - ')[0].trim() === 'Jessica') || list[0];
-          setVoice(preferred.voice_id);
-          setSelectedVoice(preferred.voice_id);
-        }
+        setSelectedVoice(ensureAllowedVoice(list));
         setStatus(`${list.length} voices.`);
       })
       .catch((err: Error) => {
