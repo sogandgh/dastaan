@@ -8,9 +8,8 @@ export type Language = {
   font: string;
   connectives: string;
   typingNote: string;
-  diacriticsNote: string;
   cultureNote: string;
-  celebrationLines: string[];
+  celebrationLine: string;
   tryAgainLine: string;
 };
 

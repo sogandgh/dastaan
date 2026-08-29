@@ -126,13 +126,18 @@ otherwise unchanged.
   and a real API call, an identical second request ~1ms served
   straight from disk, bytes identical, confirmed only one real
   ElevenLabs call happened for both.
-- ✅ Full vowel diacritics (اعراب) in generated Farsi (`languages.js`'s
-  `diacriticsNote`, wired into the story and card-translate prompts):
-  Persian script normally omits short vowels, fine for a fluent reader,
-  not much help for a kid sounding words out. Empty for Swedish, that
-  script already writes every vowel. Verified with real OpenAI calls,
-  not just by reading the prompt, both single flashcard words and a
-  full multi-scene story came back consistently vowel-marked.
+- ❌ Full vowel diacritics (اعراب) in generated Farsi, shipped then
+  removed. Added to help early readers sound out words, but real usage
+  showed it made ElevenLabs' narration sound weird, and the same
+  generation pass had also let colloquial spoken-dialect contractions
+  slip in (`دیگه` instead of the correct formal `دیگر`), which is its
+  own separate problem from diacritics. Both are gone now: no
+  `diacriticsNote` field anywhere, and the story, card-translate, and
+  Talk-tab prompts (`graphs/storyGraph.js`, `server.js`, `lilyChat.js`)
+  all now explicitly require standard formal language, never a regional
+  dialect or colloquial contraction, for every supported language, not
+  just Farsi. `languages.js`'s `celebrationLine`/`tryAgainLine` were
+  regenerated clean and reverified for the same issue.
 - ✅ Talk tab (`lilyChat.js`, `POST /api/talk`, `TalkPanel.tsx`): tap a
   mic, say something, get a short warm spoken reply, using ElevenLabs
   Scribe (`scribe_v2`) for speech-to-text since it's already the same
@@ -163,29 +168,54 @@ otherwise unchanged.
   whatever flashcards exist at that moment, newly added ones included,
   with no extra wiring needed. A wrong tap shakes once, dims out, and
   stays disabled, the round keeps going with the remaining options,
-  never a hard fail or a score held against the child, and always
-  speaks the same deterministic line for that language
-  (`languages.js`'s `tryAgainLine`, one fixed string per language
-  rather than a random pick) so it only ever needs generating once;
-  the server's content-addressed audio cache (`audioCache.js`, keyed
-  on `sha256(voiceId + text)`) then serves that clip from disk forever
-  after the first real ElevenLabs call. A right tap triggers Lily's
-  `jumping`/`waving` CSS animations (both written for the original
-  vanilla app, ported over in the React migration, never actually
-  triggered by anything until now), confetti (`Confetti.tsx`, no
-  library, plain CSS particles), a full-screen color-wash overlay
-  (`CelebrationOverlay.tsx`, a smooth multi-stop fade through the
-  app's palette over two seconds, respects `prefers-reduced-motion`
-  with a simpler crossfade), a checkmark badge on the tile, and one of
-  six varied spoken celebration lines per language (`languages.js`'s
-  `celebrationLines`, generated and verified against the real OpenAI
-  API the same way the diacritics fix was, re-checked afterwards for
-  the same wrong-sukun-codepoint bug that turned up in the Talk tab
-  work, clean this time). Both `tryAgainLine` and `celebrationLines`
-  are read purely off `languageOf(language)`, so a new language just
-  needs those fields filled in, verified generic by testing against a
-  fake language not in the real registry. Skip always available, no
+  never a hard fail or a score held against the child. A right tap
+  triggers Lily's `jumping`/`waving` CSS animations (both written for
+  the original vanilla app, ported over in the React migration, never
+  actually triggered by anything until now) and a full-screen
+  celebration (`CelebrationOverlay.tsx`): a purple gradient wash
+  covering the whole viewport, a pulsing light/shimmer effect, and one
+  of three particle styles (sprinkles, stars, or balloons, picked at
+  random each time for variety) filling the screen, replacing an
+  earlier version that was a faint color tint confined to roughly the
+  card area. Both the celebration line and the wrong-answer line are a
+  single fixed string per language (`languages.js`'s `celebrationLine`
+  and `tryAgainLine`, deterministic rather than a random pick from
+  several), generated once via a real OpenAI call and reused forever
+  after: `GamePanel` prefetches both (`narrator.prefetchLine`) the
+  moment the tab opens, and the server's content-addressed audio cache
+  (`audioCache.js`, keyed on `sha256(voiceId + text)`) serves them from
+  disk after the first real ElevenLabs call, so neither line ever waits
+  on a network round-trip during play. Both fields are read purely off
+  `languageOf(language)`, verified generic by testing against a fake
+  language not in the real registry, see `CLAUDE.md` for the full
+  language-addition checklist this drove. Skip always available, no
   penalty, just deals a new round.
+- ✅ Language picker between login and the main app
+  (`ChooseLanguagePage.tsx`): every time `HomePage` mounts (fresh page
+  load, or a sign-out/sign-in cycle in the same tab), the app asks
+  which language before showing anything else, one full-screen tap per
+  language in `LANGUAGES`, no hardcoded list. Tapping persists the pick
+  (the same `localStorage` key `SettingsModal`'s language dropdown
+  already used) and proceeds straight to the app shell.
+- ✅ More accurate flashcard pictures (`server.js`'s
+  `buildTranslatePrompt`/`generateCardImage`): the image generator used
+  to just get handed the raw translated word, which works for a
+  concrete noun ("apple") but breaks badly for anything else, a color
+  word like "yellow" came back as a picture of a yellow duck, risking
+  the child associating the word with "duck" instead of the color, and
+  a phrase like "do you remember" came back as an arbitrary unrelated
+  object (a bow) since there's nothing literal to draw. The
+  card-translate prompt now returns a dedicated `image` field, written
+  by the same model that already understands what the word means:
+  concrete nouns get a simple direct depiction, color words on their
+  own get an abstract color swatch with no object at all, other
+  qualities (big, happy, cold) get a simple universal icon for that
+  quality instead of a random carrier object, verbs get a figure
+  performing the action, and phrases/idioms get a simple symbolic scene
+  (a thought bubble with a photo for "do you remember", clasped hands
+  for "thank you"). Verified against real OpenAI calls on the exact
+  reported cases plus a few more, including a fake third language to
+  confirm the fix isn't fa/sv-specific.
 
 ## Testing
 

@@ -14,6 +14,7 @@ vi.mock('../lib/narrator', () => ({
   narrator: {
     speakText: vi.fn(),
     beginSpeaking: vi.fn(),
+    prefetchLine: vi.fn(),
     lipSync: { announce: vi.fn(), celebrate: vi.fn() },
   },
 }));
@@ -47,6 +48,7 @@ beforeEach(() => {
   });
   vi.mocked(narrator.speakText).mockReset();
   vi.mocked(narrator.beginSpeaking).mockReset();
+  vi.mocked(narrator.prefetchLine).mockReset();
   vi.mocked(narrator.lipSync.announce).mockReset();
   vi.mocked(narrator.lipSync.celebrate).mockReset();
   vi.useRealTimers();
@@ -75,7 +77,7 @@ describe('GamePanel', () => {
     expect(narrator.speakText).toHaveBeenCalledTimes(2);
   });
 
-  it('celebrates on a correct pick and starts a new round after', async () => {
+  it('celebrates on a correct pick with the deterministic celebration line and starts a new round after', async () => {
     vi.useFakeTimers();
     renderPanel();
     const tiles = screen.getAllByRole('button', { name: 'Pick this picture' });
@@ -84,6 +86,7 @@ describe('GamePanel', () => {
 
     expect(narrator.lipSync.celebrate).toHaveBeenCalled();
     expect(tiles[0]).toHaveClass('is-correct');
+    expect(narrator.speakText).toHaveBeenLastCalledWith('آفرین، آفرین!', expect.any(Function));
 
     act(() => { vi.advanceTimersByTime(2000); });
     expect(pickRound).toHaveBeenCalledWith(items, 'الف');
@@ -99,10 +102,18 @@ describe('GamePanel', () => {
     expect(tiles[1]).toHaveClass('is-wrong');
     expect(tiles[1]).toBeDisabled();
     expect(tiles[0]).not.toBeDisabled();
-    expect(narrator.speakText).toHaveBeenLastCalledWith('یِکْ بَارِ دیگِهْ!', expect.any(Function));
+    expect(narrator.speakText).toHaveBeenLastCalledWith('یک بار دیگر!', expect.any(Function));
 
     await user.click(tiles[2]);
-    expect(narrator.speakText).toHaveBeenLastCalledWith('یِکْ بَارِ دیگِهْ!', expect.any(Function));
+    expect(narrator.speakText).toHaveBeenLastCalledWith('یک بار دیگر!', expect.any(Function));
+  });
+
+  it('prefetches the celebration and try-again lines as soon as the panel opens', async () => {
+    renderPanel();
+    await waitFor(() => {
+      expect(narrator.prefetchLine).toHaveBeenCalledWith('آفرین، آفرین!');
+      expect(narrator.prefetchLine).toHaveBeenCalledWith('یک بار دیگر!');
+    });
   });
 
   it('shows the celebration overlay only while celebrating', async () => {

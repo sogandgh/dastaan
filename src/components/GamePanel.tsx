@@ -3,10 +3,8 @@ import { useAppShell } from '../context/AppShellContext';
 import { useToast } from '../context/ToastContext';
 import { useVocabulary } from '../lib/useVocabulary';
 import { pickRound, type GameRound } from '../lib/game';
-import { pickRandom } from '../lib/random';
 import { narrator } from '../lib/narrator';
 import { languageOf } from '../../languages.js';
-import { Confetti } from './Confetti';
 import { CelebrationOverlay } from './CelebrationOverlay';
 import type { DeckItem } from '../lib/builtinWords';
 import './GamePanel.css';
@@ -20,7 +18,6 @@ export function GamePanel() {
   const [shakeItem, setShakeItem] = useState<DeckItem | null>(null);
   const [correctItem, setCorrectItem] = useState<DeckItem | null>(null);
   const [celebrating, setCelebrating] = useState(false);
-  const [confettiTrigger, setConfettiTrigger] = useState(0);
 
   const pool = Object.values(categories).flat();
   const lang = languageOf(language);
@@ -44,6 +41,12 @@ export function GamePanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
+  useEffect(() => {
+    narrator.prefetchLine(lang.celebrationLine);
+    narrator.prefetchLine(lang.tryAgainLine);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
+
   function resay() {
     if (!round) return;
     narrator.speakText(round.target.word, onNoVoice);
@@ -56,9 +59,7 @@ export function GamePanel() {
       setCorrectItem(item);
       setCelebrating(true);
       narrator.lipSync.celebrate();
-      setConfettiTrigger(t => t + 1);
-      const line = lang.celebrationLines.length ? pickRandom(lang.celebrationLines) : '';
-      if (line) narrator.speakText(line, () => {});
+      if (lang.celebrationLine) narrator.speakText(lang.celebrationLine, () => {});
       setTimeout(() => {
         setCelebrating(false);
         startRound(round.target.word);
@@ -134,7 +135,6 @@ export function GamePanel() {
         Skip, next word
       </button>
 
-      <Confetti trigger={confettiTrigger} />
       <CelebrationOverlay show={celebrating} />
     </section>
   );

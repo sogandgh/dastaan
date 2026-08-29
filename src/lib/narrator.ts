@@ -178,6 +178,13 @@ class Narrator {
     return id;
   }
 
+  async prefetchLine(text: string): Promise<void> {
+    if (!text) return;
+    const voiceId = await this.resolveVoice();
+    if (!voiceId) return;
+    prefetch(text, voiceId);
+  }
+
   playClip(url: string, token: number): Promise<PlaybackOutcome> {
     return new Promise(resolve => {
       const audio = this.sharedAudio;

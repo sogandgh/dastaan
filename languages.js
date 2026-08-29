@@ -7,10 +7,9 @@ export const LANGUAGES = {
     font: "'Vazirmatn', sans-serif",
     connectives: 'و، چون، بعد، تا این‌که',
     typingNote: 'Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).',
-    diacriticsNote: "Include full vowel diacritics (اعراب): the short-vowel marks (فتحه، کسره، ضمه), sukun (ْ, as in دَرْد) on any consonant with no vowel, and shadda where a consonant doubles, the way an early-reader children's book does, so a child just learning to read can sound out every word.",
     cultureNote: 'Iran or Iranian',
-    celebrationLines: ['آفَرینْ، آفَرینْ!', 'بَهْ بَهْ، عَالِی!', 'دُرُسْتْ کَرْدِی!', 'هُورَا هُورَا!', 'پِیدا کَرْدِی!', 'چِهْ قَشَنْگْ!'],
-    tryAgainLine: 'یِکْ بَارِ دیگِهْ!',
+    celebrationLine: 'آفرین، آفرین!',
+    tryAgainLine: 'یک بار دیگر!',
   },
   sv: {
     code: 'sv',
@@ -20,9 +19,8 @@ export const LANGUAGES = {
     font: "'Baloo 2', system-ui, sans-serif",
     connectives: 'och, för att, sedan, tills',
     typingNote: '',
-    diacriticsNote: '',
     cultureNote: 'Sweden or Swedish',
-    celebrationLines: ['Hurra, rätt bild!', 'Du klarade det!', 'Så duktig du är!', 'Helt rätt!', 'Bra jobbat, kompis!', 'Toppen jobbat!'],
+    celebrationLine: 'Bra jobbat, kompis!',
     tryAgainLine: 'En gång till!',
   },
 };

@@ -276,15 +276,37 @@ function buildTranslatePrompt(language) {
 
 Given one word or short phrase, reply with ONLY a JSON object, nothing else, no
 markdown fences:
-{"fa": "...", "en": "..."}
+{"fa": "...", "en": "...", "image": "..."}
 
-- "fa": the word in ${lang.name}, correct and natural, one word or a short
-  phrase a toddler would use.${lang.typingNote ? ' ' + lang.typingNote : ''}${lang.diacriticsNote ? ' ' + lang.diacriticsNote : ''}
-- "en": a short, simple, literal English translation (one or two words) — used only to
-  generate a picture, so keep it concrete and unambiguous (e.g. "apple", not "a healthy
-  red fruit").
+- "fa": the word in ${lang.name}, correct and natural, one word or a short phrase a
+  toddler would use. Standard formal ${lang.name}, never a regional dialect or
+  spoken-colloquial contraction.${lang.typingNote ? ' ' + lang.typingNote : ''}
+- "en": a short, simple, literal English translation (one or two words), used only as a
+  gloss, not sent to the image generator directly.
+- "image": a short English description (10-20 words) for an illustrator drawing a single
+  flashcard picture of this word, written to fit what the word actually is:
+  - A concrete object, animal, food, or place (e.g. "apple", "dog", "kitchen"): describe
+    that single thing simply and visually, e.g. "a single shiny red apple, nothing else".
+  - A color word, on its own, with no object named (e.g. "yellow", "red"): describe a
+    plain abstract blob or swatch of that color and nothing else, explicitly not attached
+    to any object, e.g. "a large soft rounded blob of solid bright yellow color, abstract,
+    no object, no animal, no shape that could be mistaken for anything else". Never pick
+    an object of that color as the subject, a child would associate the word with that
+    object instead of the color.
+  - Another descriptive quality that isn't a color (e.g. "big", "happy", "cold", "soft"):
+    describe a simple, universally clear visual that embodies just that quality, without
+    inventing an unrelated object as the subject, e.g. "happy" as a simple smiling face
+    icon, "big" as one large shape next to one small shape for size comparison, "cold" as
+    a simple snowflake icon.
+  - An action or verb (e.g. "running", "jumping"): describe a simple figure performing
+    that action.
+  - A phrase, greeting, question, or abstract expression that names no physical thing at
+    all (e.g. "thank you", "goodbye", "do you remember"): describe a simple, universally
+    understandable symbolic scene for that concept rather than inventing an unrelated
+    random object, e.g. "thank you" as two hands clasped together warmly, "do you
+    remember" as a thought bubble containing a small photo.
 - If the input is already ${lang.name}, keep "fa" as given (correcting only obvious spelling)
-  and just supply "en".
+  and just supply "en" and "image".
 - If the input is nonsense or not a real word, still make a reasonable best-effort guess
   rather than refusing.`;
 }
@@ -315,12 +337,12 @@ async function translateWord(word, language, who) {
   try { parsed = JSON.parse(jsonText); } catch { parsed = null; }
   if (!parsed?.fa) throw new Error('Could not understand that word. Try another one.');
 
-  return { fa: parsed.fa, en: parsed.en || word };
+  return { fa: parsed.fa, en: parsed.en || word, image: parsed.image || parsed.en || word };
 }
 
-async function generateCardImage(wordEn, who) {
+async function generateCardImage(imageDescription, who) {
   const prompt =
-    `${wordEn}, flat vector illustration for a children's flashcard, single subject ` +
+    `${imageDescription}, flat vector illustration for a children's flashcard, ` +
     `centered, simple bold shapes, bright cheerful colors, soft shading, solid white ` +
     `background, no text, no watermark, no border`;
 
@@ -383,8 +405,8 @@ async function handleCard(req, res, auth) {
   }
 
   try {
-    const { fa, en } = await translateWord(word, normalizeLanguage(language), auth.user.email);
-    const image = await generateCardImage(en, auth.user.email);
+    const { fa, en, image: imageDescription } = await translateWord(word, normalizeLanguage(language), auth.user.email);
+    const image = await generateCardImage(imageDescription, auth.user.email);
     sendJson(res, 200, { word_fa: fa, word_en: en, image: `data:image/png;base64,${image}` });
   } catch (e) {
     sendJson(res, 502, { error: e.message });
