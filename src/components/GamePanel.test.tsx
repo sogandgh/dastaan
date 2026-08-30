@@ -2,6 +2,7 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { GamePanel } from './GamePanel';
+import { CELEBRATION_DURATION_MS } from './CelebrationOverlay';
 import { useVocabulary } from '../lib/useVocabulary';
 import { pickRound } from '../lib/game';
 import { narrator } from '../lib/narrator';
@@ -88,7 +89,7 @@ describe('GamePanel', () => {
     expect(tiles[0]).toHaveClass('is-correct');
     expect(narrator.speakText).toHaveBeenLastCalledWith('آفرین، آفرین!', expect.any(Function));
 
-    act(() => { vi.advanceTimersByTime(2400); });
+    act(() => { vi.advanceTimersByTime(CELEBRATION_DURATION_MS); });
     expect(pickRound).toHaveBeenCalledWith(items, 'الف');
   });
 
@@ -128,8 +129,22 @@ describe('GamePanel', () => {
     expect(overlay).toBeInTheDocument();
     expect(overlay?.parentElement).toBe(document.body);
 
-    act(() => { vi.advanceTimersByTime(2400); });
+    act(() => { vi.advanceTimersByTime(CELEBRATION_DURATION_MS); });
     expect(document.body.querySelector('.celebration-overlay')).not.toBeInTheDocument();
+  });
+
+  it('bursts a large mix of confetti, balloons, and stars across the screen', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const tiles = screen.getAllByRole('button', { name: 'Pick this picture' });
+
+    await user.click(tiles[0]);
+
+    const pieces = document.body.querySelectorAll('.celebration-piece');
+    expect(pieces.length).toBeGreaterThanOrEqual(50);
+    expect(document.body.querySelector('.celebration-piece--confetti')).toBeInTheDocument();
+    expect(document.body.querySelector('.celebration-piece--star')).toBeInTheDocument();
+    expect(document.body.querySelector('.celebration-piece--balloon')).toBeInTheDocument();
   });
 
   it('shows the deterministic celebration line as on-screen text during the burst', async () => {

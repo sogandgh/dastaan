@@ -2,12 +2,15 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import './CelebrationOverlay.css';
 
-const PIECE_COUNT = 22;
+export const CELEBRATION_DURATION_MS = 4400;
+
+const PIECE_COUNT = 60;
 const HUES = [45, 330, 275, 15, 200];
+const KINDS = ['star', 'confetti', 'balloon'] as const;
 
 type Piece = {
   id: number;
-  kind: 'star' | 'confetti';
+  kind: (typeof KINDS)[number];
   dx: number;
   dy: number;
   delay: number;
@@ -19,16 +22,19 @@ type Piece = {
 
 function randomPieces(): Piece[] {
   return Array.from({ length: PIECE_COUNT }, (_, id) => {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 90 + Math.random() * 170;
+    const kind = KINDS[Math.floor(Math.random() * KINDS.length)];
+    const distance = 140 + Math.random() * 380;
+    const angle = kind === 'balloon'
+      ? Math.PI * (1.15 + Math.random() * 0.7)
+      : Math.random() * Math.PI * 2;
     return {
       id,
-      kind: Math.random() < 0.5 ? 'star' : 'confetti',
+      kind,
       dx: Math.cos(angle) * distance,
       dy: Math.sin(angle) * distance,
-      delay: Math.random() * 0.15,
-      duration: 0.7 + Math.random() * 0.5,
-      scale: 0.6 + Math.random() * 0.7,
+      delay: Math.random() * 2.2,
+      duration: 1 + Math.random() * 1.4,
+      scale: 0.6 + Math.random() * 0.8,
       hue: HUES[Math.floor(Math.random() * HUES.length)] + (Math.random() * 30 - 15),
       spin: Math.random() * 480 - 240,
     };

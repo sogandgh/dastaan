@@ -4,7 +4,7 @@
   z-index: 92;
   overflow: hidden;
   pointer-events: none;
-  animation: celebrationFade 2.4s ease-in-out both;
+  animation: celebrationFade 4.4s ease-in-out both;
 }
 
 .celebration-overlay::before {
@@ -45,6 +45,25 @@
   filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
 }
 
+.celebration-piece--balloon {
+  width: 22px;
+  height: 28px;
+  margin: -14px 0 0 -11px;
+  border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%;
+  background: hsl(calc(var(--hue) * 1deg), 75%, 58%);
+}
+
+.celebration-piece--balloon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  transform: translateX(-50%);
+}
+
 .celebration-text {
   position: absolute;
   left: 50%;
@@ -55,7 +74,7 @@
   color: #fff;
   text-shadow: 0 2px 18px rgba(120, 40, 160, 0.55), 0 1px 0 rgba(0, 0, 0, 0.15);
   opacity: 0;
-  animation: textPop 2.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation: textPop 4.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
   white-space: nowrap;
 }
 
@@ -81,9 +100,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .celebration-overlay { animation: celebrationFadeReduced 2.4s ease-in-out both; }
+  .celebration-overlay { animation: celebrationFadeReduced 4.4s ease-in-out both; }
   .celebration-pieces { display: none; }
-  .celebration-text { animation: textFadeReduced 2.4s ease-in-out both; }
+  .celebration-text { animation: textFadeReduced 4.4s ease-in-out both; }
 }
 
 @keyframes celebrationFadeReduced {

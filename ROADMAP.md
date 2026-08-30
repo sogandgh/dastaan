@@ -183,18 +183,32 @@ nginx site reconfigured, this needs to be set again.
   triggers Lily's `jumping`/`waving` CSS animations (both written for
   the original vanilla app, ported over in the React migration, never
   actually triggered by anything until now) and a celebration sequence
-  (`CelebrationOverlay.tsx`): the tapped card pops, a soft radial glow
-  (warm yellow/pink fading through purple into full transparency,
-  centered on the tapped card rather than a flat full-screen color, so
-  the game stays visible underneath) washes over the screen, stars and
-  confetti burst outward from the card's exact position, and the
-  celebration word pops up as on-screen text while it's spoken. Went
-  through two design passes: the first was a flat, fully opaque purple
-  gradient with particles falling from the top of the screen, which
-  read as too heavy and disconnected from what the child actually
-  tapped, this version anchors everything to the tapped card and keeps
-  the game readable through it. Both the celebration line and the
-  wrong-answer line are a
+  (`CelebrationOverlay.tsx`, 4.4 seconds): the tapped card pops, a soft
+  radial glow (warm yellow/pink fading through purple into full
+  transparency, centered on the screen and reaching nearly to the
+  corners, so the game stays visible underneath) washes over the whole
+  page, 60 pieces of confetti, stars, and balloons (mixed per burst,
+  balloons biased to float upward, confetti/stars burst outward in
+  every direction, spread and timed to keep animating across most of
+  the celebration rather than one quick sparkle) fly out from the
+  tapped card's exact position, and the celebration word pops up as
+  on-screen text while it's spoken. Rendered through a React portal
+  straight into `document.body` (the same pattern `Modal.tsx` already
+  used for the settings/add-word sheets), after discovering the hard
+  way that `.panel`'s mount animation (`animation: panelIn ... both`,
+  which touches `transform`) makes `.panel` a containing block for any
+  `position: fixed` descendant for as long as the animation's fill
+  holds, silently shrinking the overlay down to the panel's own box
+  instead of the viewport, a portal escapes that regardless of what
+  ancestor animations exist now or get added later. Went through
+  several design passes chasing "make it feel like a bigger deal for
+  the kid": a flat, fully opaque purple gradient with particles falling
+  from the top of the screen read as too heavy and disconnected from
+  what the child actually tapped; anchoring the glow itself to the
+  tapped card made it barely visible outside a small corner of the
+  screen; the current version keeps the glow screen-centered and full-
+  page while the burst itself stays anchored to the tapped card. Both
+  the celebration line and the wrong-answer line are a
   single fixed string per language (`languages.js`'s `celebrationLine`
   and `tryAgainLine`, deterministic rather than a random pick from
   several), generated once via a real OpenAI call and reused forever

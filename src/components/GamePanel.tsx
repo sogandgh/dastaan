@@ -5,7 +5,7 @@ import { useVocabulary } from '../lib/useVocabulary';
 import { pickRound, type GameRound } from '../lib/game';
 import { narrator } from '../lib/narrator';
 import { languageOf } from '../../languages.js';
-import { CelebrationOverlay, type CelebrationOrigin } from './CelebrationOverlay';
+import { CelebrationOverlay, CELEBRATION_DURATION_MS, type CelebrationOrigin } from './CelebrationOverlay';
 import type { DeckItem } from '../lib/builtinWords';
 import './GamePanel.css';
 
@@ -71,7 +71,7 @@ export function GamePanel() {
       setTimeout(() => {
         setCelebrating(false);
         startRound(round.target.word);
-      }, 2400);
+      }, CELEBRATION_DURATION_MS);
     } else {
       setWrongItems(prev => [...prev, item]);
       setShakeItem(item);
