@@ -247,6 +247,30 @@ nginx site reconfigured, this needs to be set again.
   for "thank you"). Verified against real OpenAI calls on the exact
   reported cases plus a few more, including a fake third language to
   confirm the fix isn't fa/sv-specific.
+- ✅ Fixed a real mobile regression from the React rewrite
+  (`AppShell.css`): the old vanilla app had a `@media (max-width:
+  860px)` breakpoint that stacked Lily and the active panel vertically
+  and let the page scroll when content didn't fit; that breakpoint was
+  never ported over. `.lily-holder` has `flex-shrink: 0`, so on any
+  viewport narrower than roughly Lily's width plus a usable panel
+  width (every phone), the two were forced into a fixed-width row with
+  no room to actually fit, and `body { overflow: hidden }` meant
+  whatever didn't fit was simply unreachable, no scrolling possible.
+  Confirmed the mechanism directly (not just from the old CSS) by
+  measuring a real mounted `.stage` in the browser: at the default row
+  layout, a mocked panel's bottom edge sat 680px below the visible
+  area with no way to scroll to it. Added back an equivalent `@media
+  (max-width: 860px)` rule stacking `.stage` into a column with
+  `overflow-y: auto`; each panel already sizes itself with `width:
+  min(Npx, 100%)`, so once stacked they correctly cap to the actual
+  screen width with no further changes needed. Verified the fix the
+  same way, forcing the ruleset directly: stacked layout, panel capped
+  to the container's width with no horizontal overflow, and
+  `scrollHeight > clientHeight` confirming the container actually
+  scrolls when content is taller than the viewport. Also bumped the
+  text-input font-size from 0.95rem (15.2px) to 1rem (16px), the
+  threshold below which iOS Safari auto-zooms the page on focus, an
+  unrelated but real mobile annoyance found during the same pass.
 
 ## Testing
 

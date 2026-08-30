@@ -65,3 +65,12 @@ body[data-mode="setup"] .stage {
   display: flex;
   animation: panelIn 460ms var(--ease) both;
 }
+
+@media (max-width: 860px) {
+  .stage {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 20px;
+    overflow-y: auto;
+  }
+}

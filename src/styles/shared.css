@@ -17,7 +17,7 @@
   padding: 14px 16px;
   border-radius: var(--r-sm);
   font-family: 'Baloo 2', 'Vazirmatn', sans-serif;
-  font-size: 0.95rem;
+  font-size: 1rem;
   transition: border-color 200ms;
 }
 .field input::placeholder { color: var(--ink-faint); }
