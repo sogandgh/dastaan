@@ -89,3 +89,16 @@ body[data-mode="play"] .modes {
   display: none;
 }
 body[data-mode="play"] .topbar .icon-btn:not(.back-btn) { display: none; }
+
+@media (max-width: 640px) {
+  .topbar { padding: 14px 10px; gap: 4px; }
+  .brand-en { display: none; }
+  .brand-mark {
+    padding: 8px 8px;
+    min-width: 0;
+    min-height: 0;
+    font-size: 0.72rem;
+  }
+  .modes { padding: 3px; gap: 2px; }
+  .mode-tab { padding: 8px 11px; font-size: 0.8rem; }
+}

@@ -271,6 +271,25 @@ nginx site reconfigured, this needs to be set again.
   text-input font-size from 0.95rem (15.2px) to 1rem (16px), the
   threshold below which iOS Safari auto-zooms the page on focus, an
   unrelated but real mobile annoyance found during the same pass.
+- ✅ Fixed the "Dastaan" logo overlapping the mode tabs on narrow
+  phones (`Topbar.css`): `.brand-mark` (meant to be a small badge) held
+  the whole word "Dastaan" with `flex-shrink: 0`, so on any viewport
+  where the tabs group alone needed most of the available width, the
+  badge had nowhere to shrink into and visually collided with the
+  first tab. Confirmed precisely by mounting the real topbar markup at
+  a real 386px viewport (an iframe, which gets its own independent
+  width for media queries, rather than trying to resize the actual
+  browser window): the badge's right edge landed 15-75px past where
+  the tabs group started, a real DOM overlap, not just a rendering
+  glitch. Added a `@media (max-width: 640px)` rule (hides the
+  secondary native-language name, shrinks the badge and tab padding)
+  gated so it only ever applies below that width, re-verified the same
+  way at 360, 375, 414, and 640px (all clean) and at 1200px to confirm
+  desktop is completely unchanged.
+- ✅ Talk tab mic button now shows a different icon while recording
+  (`TalkPanel.tsx`), a filled stop-square instead of the outline mic
+  icon, on top of the existing pulsing amber background and "Listening…"
+  label, so it's unambiguous that tapping again stops the recording.
 
 ## Testing
 

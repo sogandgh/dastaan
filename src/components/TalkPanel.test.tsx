@@ -51,6 +51,23 @@ describe('TalkPanel', () => {
     expect(screen.getByText('Listening…')).toBeInTheDocument();
   });
 
+  it('shows a filled stop icon while recording and an outline mic icon otherwise', () => {
+    vi.mocked(useRecorder).mockReturnValue({ recording: false, start: vi.fn(), stop: vi.fn() });
+    const { container, rerender } = renderPanel();
+    expect(container.querySelector('.mic-btn svg')).toHaveAttribute('fill', 'none');
+    expect(container.querySelector('.mic-btn rect[rx="3"]')).toBeInTheDocument();
+
+    vi.mocked(useRecorder).mockReturnValue({ recording: true, start: vi.fn(), stop: vi.fn() });
+    rerender(
+      <AppShellProvider>
+        <ToastProvider>
+          <TalkPanel />
+        </ToastProvider>
+      </AppShellProvider>,
+    );
+    expect(container.querySelector('.mic-btn svg')).toHaveAttribute('fill', 'currentColor');
+  });
+
   it('sends the recording, shows the exchange, and speaks the reply', async () => {
     vi.mocked(sendTalkMessage).mockResolvedValue({ transcript: 'سلام', reply: 'سَلامْ عَزیزَم!' });
     let doneCallback: ((blob: Blob) => void) | undefined;
