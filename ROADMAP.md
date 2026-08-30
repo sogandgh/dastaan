@@ -69,11 +69,22 @@ Ordered by actual impact, not by how easy each one is.
 Live at **https://134-199-143-137.nip.io** (nginx in front, real
 Let's Encrypt cert, see item 1 above), backed by `/root/farsi-bluey` on
 the droplet (`farsi-bluey.service`), running `main` as of commit
-`62bb7d8`, Node 22. The old `http://134.199.143.137:8000` direct URL no
+`65fd51f`, Node 22. The old `http://134.199.143.137:8000` direct URL no
 longer works on purpose, the app now only listens on localhost, nginx
 is the only public entry point. The client is the React build (`dist/`,
 built locally and `rsync`'d over, see item 2 above), server-side code
 otherwise unchanged.
+
+nginx's config (`/etc/nginx/sites-available/dastaan` on the droplet,
+not tracked in git, lost if the droplet is ever rebuilt) needs
+`client_max_body_size 10m;` in the `server {}` block. Found the hard
+way: saving a generated flashcard round-trips the image back to the
+server as base64 in the request body (`POST /api/collections/{id}/cards`),
+easily over 1MB, and nginx's default `client_max_body_size` is 1MB, so
+every card save was silently failing with a 413 from nginx before it
+ever reached the Node app (no entry in `data/errors.log`, since the
+app never saw the request). If the droplet is ever rebuilt or the
+nginx site reconfigured, this needs to be set again.
 
 ## Features shipped
 
