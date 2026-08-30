@@ -93,8 +93,13 @@ nginx site reconfigured, this needs to be set again.
   (`languages.js`) drives UI text/direction/font and the story/translation
   prompts, so adding a language is a data-only change in one file plus a
   Swedish-equivalent word bank in `src/lib/builtinWords.ts`
-- ✅ Per-user rate limiting (`rateLimiter.js`): 15 flashcards/hour, 5
-  stories/day
+- ✅ Per-user rate limiting (`rateLimiter.js`, limits centralized in
+  `limits.js`): 5 stories/day, 50 flashcards/day, 25 Talk recordings/day.
+  All three windows are daily now (cards and Talk started as hourly
+  limits, moved to daily to match). Users can see their own current
+  usage against each limit live in Settings (`GET /api/limits`,
+  `rateLimiter.js`'s `getUsage`, read-only, doesn't consume a request),
+  each with a small progress bar.
 - ✅ Content moderation (`moderation.js`): blocklist fast path +
   [OpenAI's Moderation API](https://platform.openai.com/docs/guides/moderation).
   Originally built on a locally-hosted Llama Guard 3 1B via Ollama, but

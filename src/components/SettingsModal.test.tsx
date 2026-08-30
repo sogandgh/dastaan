@@ -3,16 +3,19 @@ import userEvent from '@testing-library/user-event';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { SettingsModal } from './SettingsModal';
 import { listVoices } from '../lib/voices';
+import { getLimits } from '../lib/limits';
 import { signOut } from '../lib/supabase';
 
 vi.mock('../lib/voices', async () => {
   const actual = await vi.importActual<typeof import('../lib/voices')>('../lib/voices');
   return { ...actual, listVoices: vi.fn() };
 });
+vi.mock('../lib/limits', () => ({ getLimits: vi.fn() }));
 vi.mock('../lib/supabase', () => ({ signOut: vi.fn() }));
 
 beforeEach(() => {
   vi.mocked(listVoices).mockReset();
+  vi.mocked(getLimits).mockReset().mockResolvedValue({});
   vi.mocked(signOut).mockReset();
   localStorage.clear();
 });
@@ -60,6 +63,26 @@ describe('SettingsModal', () => {
 
     await user.selectOptions(screen.getByLabelText('Language'), 'sv');
     expect(onLanguageChange).toHaveBeenCalledWith('sv');
+  });
+
+  it("shows the user's daily limits once loaded", async () => {
+    vi.mocked(listVoices).mockResolvedValue([]);
+    vi.mocked(getLimits).mockResolvedValue({
+      story: { used: 2, max: 5, label: 'Stories' },
+      card: { used: 10, max: 50, label: 'Flashcards' },
+      talk: { used: 1, max: 25, label: 'Talk recordings' },
+    });
+
+    render(
+      <SettingsModal open onClose={vi.fn()} language="fa" onLanguageChange={vi.fn()} />,
+    );
+
+    expect(await screen.findByText('Stories')).toBeInTheDocument();
+    expect(screen.getByText('2 / 5')).toBeInTheDocument();
+    expect(screen.getByText('Flashcards')).toBeInTheDocument();
+    expect(screen.getByText('10 / 50')).toBeInTheDocument();
+    expect(screen.getByText('Talk recordings')).toBeInTheDocument();
+    expect(screen.getByText('1 / 25')).toBeInTheDocument();
   });
 
   it('calls signOut when Sign out is clicked', async () => {

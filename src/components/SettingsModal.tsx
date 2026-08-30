@@ -3,7 +3,9 @@ import { Modal } from './Modal';
 import { LANGUAGES } from '../../languages.js';
 import { listVoices, ensureAllowedVoice, type Voice } from '../lib/voices';
 import { getVoice, setVoice } from '../lib/preferences';
+import { getLimits, type Limits } from '../lib/limits';
 import { signOut } from '../lib/supabase';
+import './SettingsModal.css';
 
 type SettingsModalProps = {
   open: boolean;
@@ -17,6 +19,7 @@ export function SettingsModal({ open, onClose, language, onLanguageChange }: Set
   const [selectedVoice, setSelectedVoice] = useState(getVoice());
   const [status, setStatus] = useState('');
   const [statusIsError, setStatusIsError] = useState(false);
+  const [limits, setLimits] = useState<Limits | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -36,6 +39,10 @@ export function SettingsModal({ open, onClose, language, onLanguageChange }: Set
         setStatus(err.message);
         setStatusIsError(true);
       });
+
+    getLimits()
+      .then(data => { if (active) setLimits(data); })
+      .catch(() => { if (active) setLimits(null); });
 
     return () => { active = false; };
   }, [open]);
@@ -74,6 +81,21 @@ export function SettingsModal({ open, onClose, language, onLanguageChange }: Set
       </label>
 
       <p className={`note${statusIsError ? ' error' : ''}`}>{status}</p>
+
+      {limits && (
+        <div className="limits-list">
+          <span className="field-label">Today's limits</span>
+          {Object.values(limits).map(limit => (
+            <div className="limit-row" key={limit.label}>
+              <span className="limit-label">{limit.label}</span>
+              <span className="limit-count">{limit.used} / {limit.max}</span>
+              <div className="limit-bar">
+                <div className="limit-bar-fill" style={{ width: `${Math.min(100, (limit.used / limit.max) * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="sheet-actions">
         <button type="button" className="ghost-btn" onClick={() => signOut()}>Sign out</button>

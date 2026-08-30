@@ -15,6 +15,13 @@ export function checkLimit(name, userId, max, windowMs) {
   return { allowed: true };
 }
 
+export function getUsage(name, userId, windowMs) {
+  const key = `${name}:${userId}`;
+  const now = Date.now();
+  const timestamps = (hits.get(key) || []).filter(t => now - t < windowMs);
+  return timestamps.length;
+}
+
 export function formatRetryAfter(ms) {
   const minutes = Math.ceil(ms / 60000);
   if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;

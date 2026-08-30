@@ -4,7 +4,8 @@ import { extname, join, normalize } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import { LANGUAGES, DEFAULT_LANGUAGE, languageOf } from './languages.js';
-import { checkLimit, formatRetryAfter } from './rateLimiter.js';
+import { checkLimit, getUsage, formatRetryAfter } from './rateLimiter.js';
+import { LIMITS } from './limits.js';
 import { moderateText, warmUp as warmUpModeration } from './moderation.js';
 import {
   PORT, HOST, ELEVENLABS_API_KEY as API_KEY, OPENAI_API_KEY as OPENAI_KEY,
@@ -17,7 +18,7 @@ import { transcribeAudio, generateLilyReply } from './lilyChat.js';
 import { runStoryGraph } from './graphs/storyGraph.js';
 import { CARD_REJECTED_MESSAGE, MODERATION_UNAVAILABLE_MESSAGE } from './messages.js';
 
-const CARD_LIMIT = { max: 15, windowMs: 60 * 60 * 1000 };
+const CARD_LIMIT = LIMITS.card;
 
 if (!globalThis.WebSocket) globalThis.WebSocket = WebSocket;
 
@@ -123,6 +124,14 @@ async function handleVoices(req, res) {
         labels:   v.labels || {},
       })),
   });
+}
+
+function handleLimits(res, auth) {
+  const usage = {};
+  for (const [name, limit] of Object.entries(LIMITS)) {
+    usage[name] = { used: getUsage(name, auth.user.id, limit.windowMs), max: limit.max, label: limit.label };
+  }
+  sendJson(res, 200, usage);
 }
 
 async function handleTts(req, res) {
@@ -401,7 +410,7 @@ async function handleCard(req, res, auth) {
 
   const cardLimit = checkLimit('card', auth.user.id, CARD_LIMIT.max, CARD_LIMIT.windowMs);
   if (!cardLimit.allowed) {
-    return sendJson(res, 429, { error: `That's this hour's cards used up. Try again in ${formatRetryAfter(cardLimit.retryAfterMs)}.` });
+    return sendJson(res, 429, { error: `That's today's cards used up. Try again in ${formatRetryAfter(cardLimit.retryAfterMs)}.` });
   }
 
   try {
@@ -413,7 +422,7 @@ async function handleCard(req, res, auth) {
   }
 }
 
-const TALK_LIMIT = { max: 20, windowMs: 60 * 60 * 1000 };
+const TALK_LIMIT = LIMITS.talk;
 
 function parseDataUrl(dataUrl) {
   const match = /^data:([^,]*);base64,([\s\S]+)$/.exec(dataUrl || '');
@@ -439,7 +448,7 @@ async function handleTalk(req, res, auth) {
 
   const talkLimit = checkLimit('talk', auth.user.id, TALK_LIMIT.max, TALK_LIMIT.windowMs);
   if (!talkLimit.allowed) {
-    return sendJson(res, 429, { error: `That's this hour's talking used up. Try again in ${formatRetryAfter(talkLimit.retryAfterMs)}.` });
+    return sendJson(res, 429, { error: `That's today's talking used up. Try again in ${formatRetryAfter(talkLimit.retryAfterMs)}.` });
   }
 
   try {
@@ -618,6 +627,10 @@ createServer(async (req, res) => {
 
     if (pathname === '/api/voices'     && req.method === 'GET')  return await handleVoices(req, res);
     if (pathname === '/api/tts'        && req.method === 'POST') return await handleTts(req, res);
+    if (pathname === '/api/limits' && req.method === 'GET') {
+      const auth = await requireAuth(req, res); if (!auth) return;
+      return handleLimits(res, auth);
+    }
 
     if (pathname === '/api/story' && req.method === 'POST') {
       const auth = await requireAuth(req, res); if (!auth) return;

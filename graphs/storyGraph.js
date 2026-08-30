@@ -6,8 +6,9 @@ import { fetchWithTimeout, logServerError, openaiErrorMessage, OPENAI_FRIENDLY_E
 import { newId, saveImageFile } from '../imageStore.js';
 import { OPENAI_API_KEY, OPENAI_IMAGE_MODEL, OPENAI_STORY_MODEL, STORY_IMAGES_DIR } from '../env.js';
 import { MODERATION_UNAVAILABLE_MESSAGE, STORY_REJECTED_MESSAGE } from '../messages.js';
+import { LIMITS } from '../limits.js';
 
-const STORY_LIMIT = { max: 5, windowMs: 24 * 60 * 60 * 1000 };
+const STORY_LIMIT = LIMITS.story;
 const WORDS_PER_MINUTE = 130;
 const MAX_WRITE_ATTEMPTS = 2;
 const MAX_SCENE_IMAGE_ATTEMPTS = 2;
