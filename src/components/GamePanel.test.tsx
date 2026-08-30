@@ -116,18 +116,20 @@ describe('GamePanel', () => {
     });
   });
 
-  it('shows the celebration overlay only while celebrating', async () => {
+  it('shows the celebration overlay only while celebrating, portaled to the body so it is never clipped by an animated ancestor', async () => {
     vi.useFakeTimers();
-    const { container } = renderPanel();
+    renderPanel();
     const tiles = screen.getAllByRole('button', { name: 'Pick this picture' });
 
-    expect(container.querySelector('.celebration-overlay')).not.toBeInTheDocument();
+    expect(document.body.querySelector('.celebration-overlay')).not.toBeInTheDocument();
 
     await tiles[0].click();
-    expect(container.querySelector('.celebration-overlay')).toBeInTheDocument();
+    const overlay = document.body.querySelector('.celebration-overlay');
+    expect(overlay).toBeInTheDocument();
+    expect(overlay?.parentElement).toBe(document.body);
 
     act(() => { vi.advanceTimersByTime(2400); });
-    expect(container.querySelector('.celebration-overlay')).not.toBeInTheDocument();
+    expect(document.body.querySelector('.celebration-overlay')).not.toBeInTheDocument();
   });
 
   it('shows the deterministic celebration line as on-screen text during the burst', async () => {
@@ -142,7 +144,7 @@ describe('GamePanel', () => {
 
   it('centers the celebration burst on the tapped card', async () => {
     vi.useFakeTimers();
-    const { container } = renderPanel();
+    renderPanel();
     const tiles = screen.getAllByRole('button', { name: 'Pick this picture' });
 
     tiles[0].getBoundingClientRect = () => ({
@@ -153,7 +155,7 @@ describe('GamePanel', () => {
 
     await tiles[0].click();
 
-    const overlay = container.querySelector('.celebration-overlay') as HTMLElement;
+    const overlay = document.body.querySelector('.celebration-overlay') as HTMLElement;
     expect(overlay.style.getPropertyValue('--origin-x')).toBe('35%');
     expect(overlay.style.getPropertyValue('--origin-y')).toBe('11.25%');
   });

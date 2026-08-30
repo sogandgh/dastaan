@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import './CelebrationOverlay.css';
 
 const PIECE_COUNT = 22;
@@ -54,7 +55,7 @@ export function CelebrationOverlay({ show, origin, line, dir, font }: Celebratio
 
   if (!show) return null;
 
-  return (
+  return createPortal(
     <div
       className="celebration-overlay"
       aria-hidden="true"
@@ -84,6 +85,7 @@ export function CelebrationOverlay({ show, origin, line, dir, font }: Celebratio
           {line}
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
