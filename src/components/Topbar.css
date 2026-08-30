@@ -91,14 +91,16 @@ body[data-mode="play"] .modes {
 body[data-mode="play"] .topbar .icon-btn:not(.back-btn) { display: none; }
 
 @media (max-width: 640px) {
-  .topbar { padding: 14px 10px; gap: 4px; }
+  .topbar { padding: 12px 8px; gap: 4px; }
   .brand-en { display: none; }
   .brand-mark {
-    padding: 8px 8px;
+    padding: 10px 13px;
     min-width: 0;
     min-height: 0;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
   }
-  .modes { padding: 3px; gap: 2px; }
-  .mode-tab { padding: 8px 11px; font-size: 0.8rem; }
+  .modes { padding: 3px; gap: 1px; }
+  .mode-tab { padding: 6px 7px; font-size: 0.72rem; }
+  .topbar .icon-btn { width: 34px; height: 34px; }
+  .topbar .icon-btn svg { width: 16px; height: 16px; }
 }

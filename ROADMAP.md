@@ -285,7 +285,11 @@ nginx site reconfigured, this needs to be set again.
   secondary native-language name, shrinks the badge and tab padding)
   gated so it only ever applies below that width, re-verified the same
   way at 360, 375, 414, and 640px (all clean) and at 1200px to confirm
-  desktop is completely unchanged.
+  desktop is completely unchanged. First pass shrank the badge more
+  than it needed to just to be safe; brought it back up (now 77px wide
+  on mobile vs 87.5px on desktop, barely smaller) by shrinking the
+  tabs and the settings icon further instead, re-verified clean at the
+  same widths.
 - ✅ Talk tab mic button now shows a different icon while recording
   (`TalkPanel.tsx`), a filled stop-square instead of the outline mic
   icon, on top of the existing pulsing amber background and "Listening…"
