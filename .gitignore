@@ -23,3 +23,7 @@ audio/
 # npm dependencies (first ones this project has ever had — @supabase/supabase-js)
 node_modules/
 dist/
+
+# Ops/planning notes — droplet IP, file paths, service name, rate limits.
+# The repo is public; this stays local-only, not published.
+/ROADMAP.md
