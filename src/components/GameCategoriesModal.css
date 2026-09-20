@@ -1,0 +1,32 @@
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin-top: 4px;
+}
+
+.category-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background-color 160ms;
+}
+.category-option:hover { background: var(--sky-lo); }
+
+.category-option input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  accent-color: var(--blue-deep);
+}
+.category-option input[type="checkbox"]:disabled { opacity: 0.5; }
+
+.category-option span {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink);
+}

@@ -6,6 +6,7 @@ import { CELEBRATION_DURATION_MS } from './CelebrationOverlay';
 import { useVocabulary } from '../lib/useVocabulary';
 import { pickRound } from '../lib/game';
 import { narrator } from '../lib/narrator';
+import { getGameCategories, setGameCategories } from '../lib/preferences';
 import { AppShellProvider } from '../context/AppShellContext';
 import { ToastProvider } from '../context/ToastContext';
 
@@ -19,6 +20,10 @@ vi.mock('../lib/narrator', () => ({
     lipSync: { announce: vi.fn(), celebrate: vi.fn() },
   },
 }));
+vi.mock('../lib/preferences', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/preferences')>();
+  return { ...actual, getGameCategories: vi.fn(() => null), setGameCategories: vi.fn() };
+});
 
 const items = [
   { img: 'a.png', word: 'الف' },
@@ -52,6 +57,8 @@ beforeEach(() => {
   vi.mocked(narrator.prefetchLine).mockReset();
   vi.mocked(narrator.lipSync.announce).mockReset();
   vi.mocked(narrator.lipSync.celebrate).mockReset();
+  vi.mocked(getGameCategories).mockReset().mockReturnValue(null);
+  vi.mocked(setGameCategories).mockReset();
   vi.useRealTimers();
 });
 
@@ -87,7 +94,7 @@ describe('GamePanel', () => {
 
     expect(narrator.lipSync.celebrate).toHaveBeenCalled();
     expect(tiles[0]).toHaveClass('is-correct');
-    expect(narrator.speakText).toHaveBeenLastCalledWith('آفرین، آفرین!', expect.any(Function));
+    expect(narrator.speakText).toHaveBeenLastCalledWith('آفرین!', expect.any(Function));
 
     act(() => { vi.advanceTimersByTime(CELEBRATION_DURATION_MS); });
     expect(pickRound).toHaveBeenCalledWith(items, 'الف');
@@ -112,7 +119,7 @@ describe('GamePanel', () => {
   it('prefetches the celebration and try-again lines as soon as the panel opens', async () => {
     renderPanel();
     await waitFor(() => {
-      expect(narrator.prefetchLine).toHaveBeenCalledWith('آفرین، آفرین!');
+      expect(narrator.prefetchLine).toHaveBeenCalledWith('آفرین!');
       expect(narrator.prefetchLine).toHaveBeenCalledWith('یک بار دیگر!');
     });
   });
@@ -154,7 +161,7 @@ describe('GamePanel', () => {
 
     await tiles[0].click();
 
-    expect(screen.getByText('آفرین، آفرین!')).toBeInTheDocument();
+    expect(screen.getByText('آفرین!')).toBeInTheDocument();
   });
 
   it('centers the celebration burst on the tapped card', async () => {
@@ -181,5 +188,107 @@ describe('GamePanel', () => {
     await user.click(screen.getByRole('button', { name: 'Skip, next word' }));
     expect(narrator.beginSpeaking).toHaveBeenCalled();
     expect(pickRound).toHaveBeenLastCalledWith(items, 'الف');
+  });
+});
+
+const animalItems = [
+  { img: 'a1.png', word: 'گربه' },
+  { img: 'a2.png', word: 'سگ' },
+  { img: 'a3.png', word: 'اسب' },
+  { img: 'a4.png', word: 'موش' },
+];
+const faceItems = [
+  { img: 'f1.png', word: 'چشم' },
+  { img: 'f2.png', word: 'گوش' },
+];
+const verbCollectionItems = [
+  { img: 'v1.png', word: 'دویدن' },
+];
+
+function mockMultiCategoryVocabulary() {
+  vi.mocked(useVocabulary).mockReturnValue({
+    categories: { animals: animalItems, face: faceItems, verbs: verbCollectionItems },
+    collections: [{ id: 'verbs', name: 'Verbs', _key: 'verbs' }],
+    loading: false,
+    reload: vi.fn(),
+    addCollection: vi.fn(),
+    removeCollection: vi.fn(),
+  });
+}
+
+describe('GamePanel category picker', () => {
+  it('defaults to every deck when nothing has been picked before', () => {
+    mockMultiCategoryVocabulary();
+    renderPanel();
+    expect(pickRound).toHaveBeenCalledWith(
+      [...animalItems, ...faceItems, ...verbCollectionItems],
+      undefined,
+    );
+  });
+
+  it('lists builtin decks and custom collections by their real names', async () => {
+    mockMultiCategoryVocabulary();
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: 'Choose which decks to play with' }));
+
+    expect(screen.getByText('Animals')).toBeInTheDocument();
+    expect(screen.getByText('Face & body')).toBeInTheDocument();
+    expect(screen.getByText('Verbs')).toBeInTheDocument();
+  });
+
+  it('narrows the pool and starts a new round when a deck is unchecked', async () => {
+    mockMultiCategoryVocabulary();
+    const user = userEvent.setup();
+    renderPanel();
+    vi.mocked(pickRound).mockClear();
+
+    await user.click(screen.getByRole('button', { name: 'Choose which decks to play with' }));
+    await user.click(screen.getByText('Face & body'));
+
+    expect(setGameCategories).toHaveBeenCalledWith(['animals', 'verbs']);
+    await waitFor(() => {
+      expect(pickRound).toHaveBeenLastCalledWith([...animalItems, ...verbCollectionItems], undefined);
+    });
+  });
+
+  it('respects a previously saved deck selection on mount', () => {
+    mockMultiCategoryVocabulary();
+    vi.mocked(getGameCategories).mockReturnValue(['animals']);
+    renderPanel();
+    expect(pickRound).toHaveBeenCalledWith(animalItems, undefined);
+  });
+
+  it('will not let the last remaining deck be unchecked', async () => {
+    vi.mocked(getGameCategories).mockReturnValue(['animals']);
+    mockMultiCategoryVocabulary();
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole('button', { name: 'Choose which decks to play with' }));
+    const animalsCheckbox = screen.getByRole('checkbox', { name: 'Animals' });
+    expect(animalsCheckbox).toBeChecked();
+    expect(animalsCheckbox).toBeDisabled();
+
+    await user.click(animalsCheckbox);
+    expect(setGameCategories).not.toHaveBeenCalled();
+  });
+
+  it('drops a saved deck that no longer exists but keeps the rest of the saved selection', () => {
+    vi.mocked(getGameCategories).mockReturnValue(['animals', 'a-deleted-collection']);
+    mockMultiCategoryVocabulary();
+    renderPanel();
+    expect(pickRound).toHaveBeenCalledWith(animalItems, undefined);
+  });
+
+  it('falls back to every deck when the entire saved selection no longer exists', () => {
+    vi.mocked(getGameCategories).mockReturnValue(['a-deleted-collection', 'another-gone-one']);
+    mockMultiCategoryVocabulary();
+    renderPanel();
+    expect(pickRound).toHaveBeenCalledWith(
+      [...animalItems, ...faceItems, ...verbCollectionItems],
+      undefined,
+    );
   });
 });

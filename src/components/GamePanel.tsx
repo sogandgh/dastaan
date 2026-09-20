@@ -4,9 +4,11 @@ import { useToast } from '../context/ToastContext';
 import { useVocabulary } from '../lib/useVocabulary';
 import { pickRound, type GameRound } from '../lib/game';
 import { narrator } from '../lib/narrator';
+import { getGameCategories, setGameCategories } from '../lib/preferences';
 import { languageOf } from '../../languages.js';
 import { CelebrationOverlay, CELEBRATION_DURATION_MS, type CelebrationOrigin } from './CelebrationOverlay';
-import type { DeckItem } from '../lib/builtinWords';
+import { GameCategoriesModal, type CategoryOption } from './GameCategoriesModal';
+import { BUILTIN_CATEGORY_LABELS, isBuiltinCategory, type DeckItem } from '../lib/builtinWords';
 import './GamePanel.css';
 
 const CENTER_ORIGIN: CelebrationOrigin = { x: 50, y: 50 };
@@ -14,19 +16,36 @@ const CENTER_ORIGIN: CelebrationOrigin = { x: 50, y: 50 };
 export function GamePanel() {
   const { language } = useAppShell();
   const { showToast } = useToast();
-  const { categories, loading } = useVocabulary(language);
+  const { categories, collections, loading } = useVocabulary(language);
   const [round, setRound] = useState<GameRound | null>(null);
   const [wrongItems, setWrongItems] = useState<DeckItem[]>([]);
   const [shakeItem, setShakeItem] = useState<DeckItem | null>(null);
   const [correctItem, setCorrectItem] = useState<DeckItem | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [celebrationOrigin, setCelebrationOrigin] = useState<CelebrationOrigin>(CENTER_ORIGIN);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => getGameCategories() ?? []);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
 
-  const pool = Object.values(categories).flat();
+  const allKeys = Object.keys(categories);
+  const validSelected = selectedCategories.filter(key => allKeys.includes(key));
+  const effectiveSelected = validSelected.length > 0 ? validSelected : allKeys;
+  const effectiveSelectedSignature = effectiveSelected.join(',');
+
+  const categoryOptions: CategoryOption[] = allKeys.map(key => ({
+    key,
+    label: isBuiltinCategory(key) ? BUILTIN_CATEGORY_LABELS[key] : collections.find(c => c._key === key)?.name ?? key,
+  }));
+
+  const pool = effectiveSelected.flatMap(key => categories[key] ?? []);
   const lang = languageOf(language);
 
   function onNoVoice() {
     showToast('Pick a narrator voice in Settings first.');
+  }
+
+  function handleCategoriesChange(keys: string[]) {
+    setSelectedCategories(keys);
+    setGameCategories(keys);
   }
 
   function startRound(avoidWord?: string) {
@@ -42,7 +61,7 @@ export function GamePanel() {
   useEffect(() => {
     if (!loading) startRound();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, effectiveSelectedSignature]);
 
   useEffect(() => {
     narrator.prefetchLine(lang.celebrationLine);
@@ -86,6 +105,24 @@ export function GamePanel() {
     startRound(round.target.word);
   }
 
+  const categoriesModal = (
+    <GameCategoriesModal
+      open={categoriesOpen}
+      onClose={() => setCategoriesOpen(false)}
+      options={categoryOptions}
+      selected={effectiveSelected}
+      onChange={handleCategoriesChange}
+    />
+  );
+
+  const categoriesButton = (
+    <button type="button" className="game-icon-btn" onClick={() => setCategoriesOpen(true)} aria-label="Choose which decks to play with">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 6h16M4 12h16M4 18h10" />
+      </svg>
+    </button>
+  );
+
   if (loading) {
     return (
       <section className="panel panel-game">
@@ -99,8 +136,10 @@ export function GamePanel() {
       <section className="panel panel-game">
         <div className="game-head">
           <h1>Not quite enough cards yet</h1>
-          <p>Add a few more flashcards in Learn, then come back to play.</p>
+          {categoriesButton}
         </div>
+        <p>Add a few more flashcards in Learn, or pick more decks to play with, then come back to play.</p>
+        {categoriesModal}
       </section>
     );
   }
@@ -109,13 +148,16 @@ export function GamePanel() {
     <section className="panel panel-game">
       <div className="game-head">
         <h1>Which one is it?</h1>
-        <button type="button" className="resay-btn" onClick={resay} aria-label="Say the word again">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 5 6 9H3v6h3l5 4z" />
-            <path d="M15.5 8.5a5 5 0 0 1 0 7" />
-            <path d="M18 6a9 9 0 0 1 0 12" />
-          </svg>
-        </button>
+        <div className="game-head-actions">
+          {categoriesButton}
+          <button type="button" className="game-icon-btn" onClick={resay} aria-label="Say the word again">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0" />
+              <path d="M12 18v3" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="game-grid">
@@ -150,6 +192,7 @@ export function GamePanel() {
         dir={lang.dir}
         font={lang.font}
       />
+      {categoriesModal}
     </section>
   );
 }

@@ -25,7 +25,14 @@
   color: var(--ink-soft);
 }
 
-.resay-btn {
+.game-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.game-icon-btn {
   display: grid;
   place-items: center;
   width: 40px;
@@ -37,8 +44,8 @@
   box-shadow: var(--shadow-sm);
   transition: transform 200ms var(--ease), color 200ms;
 }
-.resay-btn svg { width: 18px; height: 18px; }
-.resay-btn:hover { color: var(--coral); transform: scale(1.08); }
+.game-icon-btn svg { width: 18px; height: 18px; }
+.game-icon-btn:hover { color: var(--coral); transform: scale(1.08); }
 
 .game-grid {
   display: grid;

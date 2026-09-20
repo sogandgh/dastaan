@@ -8,7 +8,7 @@ export const LANGUAGES = {
     connectives: 'و، چون، بعد، تا این‌که',
     typingNote: 'Use the zero-width non-joiner correctly (می‌کرد, برگ‌ها).',
     cultureNote: 'Iran or Iranian',
-    celebrationLine: 'آفرین، آفرین!',
+    celebrationLine: 'آفرین!',
     tryAgainLine: 'یک بار دیگر!',
   },
   sv: {

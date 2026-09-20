@@ -11,6 +11,11 @@ export function isBuiltinCategory(cat: string): cat is BuiltinCategory {
   return (BUILTIN_CATEGORIES as readonly string[]).includes(cat);
 }
 
+export const BUILTIN_CATEGORY_LABELS: Record<BuiltinCategory, string> = {
+  animals: 'Animals',
+  face: 'Face & body',
+};
+
 const BUILTIN_WORDS: Record<string, Record<BuiltinCategory, DeckItem[]>> = {
   fa: {
     animals: [
