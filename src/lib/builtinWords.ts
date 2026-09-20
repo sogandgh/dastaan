@@ -4,7 +4,7 @@ export type DeckItem = {
   key?: string;
 };
 
-export const BUILTIN_CATEGORIES = ['animals', 'face', 'colors', 'numbers'] as const;
+export const BUILTIN_CATEGORIES = ['animals', 'face', 'colors', 'numbers', 'shapes', 'food', 'family', 'vehicles'] as const;
 export type BuiltinCategory = (typeof BUILTIN_CATEGORIES)[number];
 
 export function isBuiltinCategory(cat: string): cat is BuiltinCategory {
@@ -16,6 +16,10 @@ export const BUILTIN_CATEGORY_LABELS: Record<BuiltinCategory, string> = {
   face: 'Face & body',
   colors: 'Colors',
   numbers: 'Numbers',
+  shapes: 'Shapes',
+  food: 'Food',
+  family: 'Family',
+  vehicles: 'Vehicles',
 };
 
 const BUILTIN_WORDS: Record<string, Record<BuiltinCategory, DeckItem[]>> = {
@@ -66,6 +70,44 @@ const BUILTIN_WORDS: Record<string, Record<BuiltinCategory, DeckItem[]>> = {
       { img: 'pictures/numbers/9.svg', word: 'نه' },
       { img: 'pictures/numbers/10.svg', word: 'ده' },
     ],
+    shapes: [
+      { img: 'pictures/shapes/circle.svg', word: 'دایره' },
+      { img: 'pictures/shapes/square.svg', word: 'مربع' },
+      { img: 'pictures/shapes/triangle.svg', word: 'مثلث' },
+      { img: 'pictures/shapes/rectangle.svg', word: 'مستطیل' },
+      { img: 'pictures/shapes/star.svg', word: 'ستاره' },
+      { img: 'pictures/shapes/heart.svg', word: 'قلب' },
+      { img: 'pictures/shapes/diamond.svg', word: 'لوزی' },
+      { img: 'pictures/shapes/oval.svg', word: 'بیضی' },
+    ],
+    food: [
+      { img: 'pictures/food/apple.png', word: 'سیب' },
+      { img: 'pictures/food/banana.png', word: 'موز' },
+      { img: 'pictures/food/bread.png', word: 'نان' },
+      { img: 'pictures/food/milk.png', word: 'شیر' },
+      { img: 'pictures/food/egg.png', word: 'تخم‌مرغ' },
+      { img: 'pictures/food/cheese.png', word: 'پنیر' },
+      { img: 'pictures/food/cookie.png', word: 'بیسکویت' },
+      { img: 'pictures/food/carrot.png', word: 'هویج' },
+    ],
+    family: [
+      { img: 'pictures/family/mom.png', word: 'مامان' },
+      { img: 'pictures/family/dad.png', word: 'بابا' },
+      { img: 'pictures/family/sister.png', word: 'خواهر' },
+      { img: 'pictures/family/brother.png', word: 'برادر' },
+      { img: 'pictures/family/grandma.png', word: 'مامان‌بزرگ' },
+      { img: 'pictures/family/grandpa.png', word: 'بابابزرگ' },
+      { img: 'pictures/family/baby.png', word: 'بچه' },
+    ],
+    vehicles: [
+      { img: 'pictures/vehicles/car.png', word: 'ماشین' },
+      { img: 'pictures/vehicles/bus.png', word: 'اتوبوس' },
+      { img: 'pictures/vehicles/train.png', word: 'قطار' },
+      { img: 'pictures/vehicles/airplane.png', word: 'هواپیما' },
+      { img: 'pictures/vehicles/bicycle.png', word: 'دوچرخه' },
+      { img: 'pictures/vehicles/boat.png', word: 'قایق' },
+      { img: 'pictures/vehicles/truck.png', word: 'کامیون' },
+    ],
   },
   sv: {
     animals: [
@@ -113,6 +155,44 @@ const BUILTIN_WORDS: Record<string, Record<BuiltinCategory, DeckItem[]>> = {
       { img: 'pictures/numbers/8.svg', word: 'åtta' },
       { img: 'pictures/numbers/9.svg', word: 'nio' },
       { img: 'pictures/numbers/10.svg', word: 'tio' },
+    ],
+    shapes: [
+      { img: 'pictures/shapes/circle.svg', word: 'cirkel' },
+      { img: 'pictures/shapes/square.svg', word: 'fyrkant' },
+      { img: 'pictures/shapes/triangle.svg', word: 'triangel' },
+      { img: 'pictures/shapes/rectangle.svg', word: 'rektangel' },
+      { img: 'pictures/shapes/star.svg', word: 'stjärna' },
+      { img: 'pictures/shapes/heart.svg', word: 'hjärta' },
+      { img: 'pictures/shapes/diamond.svg', word: 'diamant' },
+      { img: 'pictures/shapes/oval.svg', word: 'oval' },
+    ],
+    food: [
+      { img: 'pictures/food/apple.png', word: 'äpple' },
+      { img: 'pictures/food/banana.png', word: 'banan' },
+      { img: 'pictures/food/bread.png', word: 'bröd' },
+      { img: 'pictures/food/milk.png', word: 'mjölk' },
+      { img: 'pictures/food/egg.png', word: 'ägg' },
+      { img: 'pictures/food/cheese.png', word: 'ost' },
+      { img: 'pictures/food/cookie.png', word: 'kaka' },
+      { img: 'pictures/food/carrot.png', word: 'morot' },
+    ],
+    family: [
+      { img: 'pictures/family/mom.png', word: 'mamma' },
+      { img: 'pictures/family/dad.png', word: 'pappa' },
+      { img: 'pictures/family/sister.png', word: 'syster' },
+      { img: 'pictures/family/brother.png', word: 'bror' },
+      { img: 'pictures/family/grandma.png', word: 'mormor' },
+      { img: 'pictures/family/grandpa.png', word: 'morfar' },
+      { img: 'pictures/family/baby.png', word: 'bebis' },
+    ],
+    vehicles: [
+      { img: 'pictures/vehicles/car.png', word: 'bil' },
+      { img: 'pictures/vehicles/bus.png', word: 'buss' },
+      { img: 'pictures/vehicles/train.png', word: 'tåg' },
+      { img: 'pictures/vehicles/airplane.png', word: 'flygplan' },
+      { img: 'pictures/vehicles/bicycle.png', word: 'cykel' },
+      { img: 'pictures/vehicles/boat.png', word: 'båt' },
+      { img: 'pictures/vehicles/truck.png', word: 'lastbil' },
     ],
   },
 };
