@@ -4,7 +4,7 @@ export type DeckItem = {
   key?: string;
 };
 
-export const BUILTIN_CATEGORIES = ['animals', 'face'] as const;
+export const BUILTIN_CATEGORIES = ['animals', 'face', 'colors', 'numbers'] as const;
 export type BuiltinCategory = (typeof BUILTIN_CATEGORIES)[number];
 
 export function isBuiltinCategory(cat: string): cat is BuiltinCategory {
@@ -14,6 +14,8 @@ export function isBuiltinCategory(cat: string): cat is BuiltinCategory {
 export const BUILTIN_CATEGORY_LABELS: Record<BuiltinCategory, string> = {
   animals: 'Animals',
   face: 'Face & body',
+  colors: 'Colors',
+  numbers: 'Numbers',
 };
 
 const BUILTIN_WORDS: Record<string, Record<BuiltinCategory, DeckItem[]>> = {
@@ -42,6 +44,28 @@ const BUILTIN_WORDS: Record<string, Record<BuiltinCategory, DeckItem[]>> = {
       { img: 'pictures/face/tongue.jpg', word: 'زبان' },
       { img: 'pictures/face/tooth.png', word: 'دندان' },
     ],
+    colors: [
+      { img: 'pictures/colors/red.svg', word: 'قرمز' },
+      { img: 'pictures/colors/orange.svg', word: 'نارنجی' },
+      { img: 'pictures/colors/yellow.svg', word: 'زرد' },
+      { img: 'pictures/colors/green.svg', word: 'سبز' },
+      { img: 'pictures/colors/blue.svg', word: 'آبی' },
+      { img: 'pictures/colors/purple.svg', word: 'بنفش' },
+      { img: 'pictures/colors/pink.svg', word: 'صورتی' },
+      { img: 'pictures/colors/brown.svg', word: 'قهوه‌ای' },
+    ],
+    numbers: [
+      { img: 'pictures/numbers/1.svg', word: 'یک' },
+      { img: 'pictures/numbers/2.svg', word: 'دو' },
+      { img: 'pictures/numbers/3.svg', word: 'سه' },
+      { img: 'pictures/numbers/4.svg', word: 'چهار' },
+      { img: 'pictures/numbers/5.svg', word: 'پنج' },
+      { img: 'pictures/numbers/6.svg', word: 'شش' },
+      { img: 'pictures/numbers/7.svg', word: 'هفت' },
+      { img: 'pictures/numbers/8.svg', word: 'هشت' },
+      { img: 'pictures/numbers/9.svg', word: 'نه' },
+      { img: 'pictures/numbers/10.svg', word: 'ده' },
+    ],
   },
   sv: {
     animals: [
@@ -67,6 +91,28 @@ const BUILTIN_WORDS: Record<string, Record<BuiltinCategory, DeckItem[]>> = {
       { img: 'pictures/face/nose.jpg', word: 'näsa' },
       { img: 'pictures/face/tongue.jpg', word: 'tunga' },
       { img: 'pictures/face/tooth.png', word: 'tand' },
+    ],
+    colors: [
+      { img: 'pictures/colors/red.svg', word: 'röd' },
+      { img: 'pictures/colors/orange.svg', word: 'orange' },
+      { img: 'pictures/colors/yellow.svg', word: 'gul' },
+      { img: 'pictures/colors/green.svg', word: 'grön' },
+      { img: 'pictures/colors/blue.svg', word: 'blå' },
+      { img: 'pictures/colors/purple.svg', word: 'lila' },
+      { img: 'pictures/colors/pink.svg', word: 'rosa' },
+      { img: 'pictures/colors/brown.svg', word: 'brun' },
+    ],
+    numbers: [
+      { img: 'pictures/numbers/1.svg', word: 'ett' },
+      { img: 'pictures/numbers/2.svg', word: 'två' },
+      { img: 'pictures/numbers/3.svg', word: 'tre' },
+      { img: 'pictures/numbers/4.svg', word: 'fyra' },
+      { img: 'pictures/numbers/5.svg', word: 'fem' },
+      { img: 'pictures/numbers/6.svg', word: 'sex' },
+      { img: 'pictures/numbers/7.svg', word: 'sju' },
+      { img: 'pictures/numbers/8.svg', word: 'åtta' },
+      { img: 'pictures/numbers/9.svg', word: 'nio' },
+      { img: 'pictures/numbers/10.svg', word: 'tio' },
     ],
   },
 };

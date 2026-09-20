@@ -1,4 +1,5 @@
 import type { Collection } from '../lib/vocabulary';
+import { BUILTIN_CATEGORIES, BUILTIN_CATEGORY_LABELS } from '../lib/builtinWords';
 import './DeckTabs.css';
 
 type DeckTabsProps = {
@@ -13,20 +14,16 @@ export function DeckTabs({ currentCategory, collections, onSelect, onDeleteColle
   return (
     <div className="deck-row">
       <div className="deck-tabs" role="tablist" aria-label="Deck">
-        <button
-          type="button"
-          className={`deck-tab${currentCategory === 'animals' ? ' is-active' : ''}`}
-          onClick={() => onSelect('animals')}
-        >
-          Animals
-        </button>
-        <button
-          type="button"
-          className={`deck-tab${currentCategory === 'face' ? ' is-active' : ''}`}
-          onClick={() => onSelect('face')}
-        >
-          Face &amp; body
-        </button>
+        {BUILTIN_CATEGORIES.map(category => (
+          <button
+            type="button"
+            key={category}
+            className={`deck-tab${currentCategory === category ? ' is-active' : ''}`}
+            onClick={() => onSelect(category)}
+          >
+            {BUILTIN_CATEGORY_LABELS[category]}
+          </button>
+        ))}
         {collections.map(coll => (
           <button
             type="button"
